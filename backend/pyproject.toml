@@ -32,8 +32,7 @@ dependencies = [
     # News
     "newsapi-python>=0.2.7",
 
-    # Social
-    "tweepy>=4.14.0",
+    # Social (Twitter/X is scraped via Google, no tweepy needed)
 
     # Gradio UI
     "gradio>=4.36.0",

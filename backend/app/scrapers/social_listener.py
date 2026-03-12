@@ -18,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import requests
-import tweepy
 from bs4 import BeautifulSoup
 
 from app.schemas.social_post import SocialPost
@@ -39,120 +38,168 @@ _REDDIT_MAX_RESULTS = 15
 def fetch_social(ticker: str, days: int = 21, company_name: str = "") -> List[SocialPost]:
     """Fetch social media posts mentioning a given stock ticker.
 
-    Combines Twitter/X cashtag mentions ($TICKER) and Reddit posts
-    from multiple Indian stock subreddits.
-
-    If Reddit yields 0 results and SerpAPI is available, falls back to
-    a Google search for "{ticker} OR {company_name}" to find recent
-    discussions anywhere on the web.
+    Uses the stock alias generator to discover all common names for the stock,
+    then searches across:
+    1. Reddit (5 subreddits via SerpAPI or direct scraping)
+    2. Twitter/X (via SerpAPI Google search with site:twitter.com filter)
+    3. Google web discussions (fallback if Reddit+Twitter yield nothing)
 
     Args:
-        ticker: NSE/BSE ticker (e.g. 'RELIANCE'). Used as cashtag on Twitter.
-        days: Number of past days to search. Twitter free tier: last 7 days only.
-        company_name: Optional full company name for better Google search results.
+        ticker: NSE/BSE ticker (e.g. 'RELIANCE', 'SBIN', 'ETERNAL').
+        days: Number of past days to search.
+        company_name: Optional override for company name (if empty, auto-resolved).
 
     Returns:
         Combined list of SocialPost instances from all available platforms.
-        If a platform's API key is missing, that source is silently skipped.
     """
+    # Resolve stock aliases for better search coverage
+    from app.scrapers.stock_alias import get_stock_info
+    stock_info = get_stock_info(ticker)
+
+    # Use provided company_name or the resolved one
+    effective_company_name = company_name or stock_info.company_name
+
     posts: List[SocialPost] = []
 
-    posts.extend(_fetch_twitter(ticker, days))
-
-    reddit_posts = _fetch_reddit_via_serp(ticker, days)
+    # 1. Reddit — use all names to search multiple subreddits
+    reddit_posts = _fetch_reddit_via_serp(ticker, days, stock_info.all_names)
     posts.extend(reddit_posts)
 
-    # If Reddit found nothing, try a general Google search for stock discussions
-    if not reddit_posts:
-        google_posts = _fetch_google_discussions(ticker, company_name, days)
+    # 2. Twitter/X — search Google for tweets mentioning the stock
+    twitter_posts = _fetch_twitter_via_google(stock_info, days)
+    posts.extend(twitter_posts)
+
+    # 3. If both Reddit and Twitter found nothing, try general Google discussions
+    if not reddit_posts and not twitter_posts:
+        google_posts = _fetch_google_discussions(ticker, effective_company_name, days)
         posts.extend(google_posts)
 
     logger.info("fetch_social(%s, days=%d) → %d posts", ticker, days, len(posts))
     return posts
 
 
-# ── Twitter/X ──────────────────────────────────────────────────────────────────
+# ── Twitter/X via Google Search ────────────────────────────────────────────────
 
 
-def _fetch_twitter(ticker: str, days: int) -> List[SocialPost]:
-    """Fetch Twitter/X posts mentioning the cashtag $TICKER.
+def _fetch_twitter_via_google(stock_info, days: int) -> List[SocialPost]:
+    """Search Google via SerpAPI for Twitter/X posts mentioning the stock.
 
-    Uses Twitter API v2 recent search (bearer token, no user auth required).
-    Free tier supports search over last 7 days with up to 100 results/request.
-
-    Returns empty list if TWITTER_BEARER_TOKEN is not set.
+    Uses site:twitter.com OR site:x.com filter with all known stock names.
+    This replaces the Twitter API (paid) with free Google scraping.
     """
-    bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
-    if not bearer_token:
-        logger.info("TWITTER_BEARER_TOKEN not set — skipping Twitter scrape")
+    api_key = os.getenv("SERP_API_KEY")
+    if not api_key:
+        logger.info("SERP_API_KEY not set — skipping Twitter/X Google search")
         return []
 
+    # Build search query using all aliases
+    names = stock_info.all_names[:4]  # Limit to avoid overly long queries
+    name_query = " OR ".join(f'"{n}"' for n in names)
+    query = f"({name_query}) (site:twitter.com OR site:x.com)"
+
+    # Time filter
+    if days <= 7:
+        tbs = "qdr:w"
+    elif days <= 30:
+        tbs = "qdr:m"
+    else:
+        tbs = "qdr:m3"
+
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": api_key,
+        "num": 15,
+        "tbs": tbs,
+    }
+
+    posts: List[SocialPost] = []
     try:
-        client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
-        since = datetime.now(tz=timezone.utc) - timedelta(days=min(days, 7))
+        resp = requests.get("https://serpapi.com/search", params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
 
-        query = f"${ticker} lang:en -is:retweet"
-        response = client.search_recent_tweets(
-            query=query,
-            start_time=since,
-            max_results=_TWITTER_MAX_RESULTS,
-            tweet_fields=["created_at", "public_metrics", "author_id"],
-        )
+        organic_results = data.get("organic_results", [])
+        logger.info("SerpAPI found %d Twitter/X results for %s", len(organic_results), stock_info.ticker)
 
-        if not response.data:
-            return []
-
-        posts = []
-        for tweet in response.data:
-            metrics = tweet.public_metrics or {}
-            try:
-                posts.append(SocialPost(
-                    platform="twitter",
-                    post_id=str(tweet.id),
-                    content=tweet.text,
-                    author=str(tweet.author_id),
-                    date=tweet.created_at or datetime.now(tz=timezone.utc),
-                    likes=metrics.get("like_count", 0),
-                    comments=metrics.get("reply_count", 0),
-                    url=f"https://twitter.com/i/web/status/{tweet.id}",
-                ))
-            except Exception as exc:
-                logger.debug("Skipping malformed tweet %s: %s", tweet.id, exc)
-
-        return posts
+        for result in organic_results:
+            post = _parse_twitter_google_result(result)
+            if post:
+                posts.append(post)
 
     except Exception as exc:
-        logger.warning("Twitter API error for %s: %s", ticker, exc)
-        return []
+        logger.warning("Twitter/X Google search failed for %s: %s", stock_info.ticker, exc)
+
+    return posts
+
+
+def _parse_twitter_google_result(result: dict) -> Optional[SocialPost]:
+    """Parse a Google result from Twitter/X into a SocialPost."""
+    try:
+        url = result.get("link", "")
+        title = result.get("title", "")
+        snippet = result.get("snippet", "")
+
+        if not url:
+            return None
+
+        # Extract tweet content: Google often shows "username on X: tweet text"
+        content = snippet or title
+
+        # Try to extract author from title ("@username on X" pattern)
+        author = ""
+        author_match = re.search(r'(@\w+)', title)
+        if author_match:
+            author = author_match.group(1)
+        elif " on X:" in title:
+            author = title.split(" on X:")[0].strip()
+        elif " on Twitter:" in title:
+            author = title.split(" on Twitter:")[0].strip()
+
+        # Try to get date
+        date_str = result.get("date", "")
+        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
+
+        # Extract status ID from URL
+        status_match = re.search(r'/status/(\d+)', url)
+        post_id = status_match.group(1) if status_match else re.sub(r'[^a-zA-Z0-9]', '', url[-20:])
+
+        return SocialPost(
+            platform="twitter",
+            post_id=post_id,
+            content=content,
+            author=author,
+            date=post_date,
+            likes=0,
+            comments=0,
+            url=url,
+        )
+    except Exception as exc:
+        logger.debug("Failed to parse Twitter Google result: %s", exc)
+        return None
 
 
 # ── Reddit via SerpAPI + Scraping ──────────────────────────────────────────────
 
 
-def _fetch_reddit_via_serp(ticker: str, days: int) -> List[SocialPost]:
+def _fetch_reddit_via_serp(ticker: str, days: int, search_names: Optional[List[str]] = None) -> List[SocialPost]:
     """Fetch Reddit posts by searching Google via SerpAPI with site:reddit.com filter.
 
-    Strategy:
-    1. SerpAPI Google search: "{ticker} site:reddit.com/r/{subreddit}"
-       with time filter for last N days.
-    2. Extract Reddit post URLs from search results.
-    3. Scrape each Reddit post's old.reddit.com page for title, body,
-       upvotes, comments, and author.
-
+    Uses all known stock names (aliases) for broader search coverage.
     Falls back to scraping Reddit search directly if SerpAPI key is not set.
-    Returns empty list if neither method works.
     """
     serp_api_key = os.getenv("SERP_API_KEY")
+    names = search_names or [ticker]
 
     if serp_api_key:
-        return _reddit_via_serpapi(ticker, days, serp_api_key)
+        return _reddit_via_serpapi(names, days, serp_api_key)
     else:
         logger.info("SERP_API_KEY not set — trying direct Reddit search scraping")
         return _reddit_via_direct_scrape(ticker, days)
 
 
-def _reddit_via_serpapi(ticker: str, days: int, api_key: str) -> List[SocialPost]:
-    """Use SerpAPI to Google-search Reddit for stock mentions."""
+def _reddit_via_serpapi(search_names: List[str], days: int, api_key: str) -> List[SocialPost]:
+    """Use SerpAPI to Google-search Reddit for stock mentions using all aliases."""
     posts: List[SocialPost] = []
 
     # Map days to Google's tbs time filter parameter
@@ -163,8 +210,11 @@ def _reddit_via_serpapi(ticker: str, days: int, api_key: str) -> List[SocialPost
     else:
         tbs = "qdr:m3"  # past 3 months
 
+    # Build OR query from all stock names
+    name_query = " OR ".join(f'"{n}"' for n in search_names[:5])  # Limit to 5
+
     for subreddit in _REDDIT_SUBREDDITS:
-        query = f"{ticker} site:reddit.com/r/{subreddit}"
+        query = f"({name_query}) site:reddit.com/r/{subreddit}"
         params = {
             "engine": "google",
             "q": query,
@@ -181,7 +231,7 @@ def _reddit_via_serpapi(ticker: str, days: int, api_key: str) -> List[SocialPost
             organic_results = data.get("organic_results", [])
             logger.info(
                 "SerpAPI returned %d results for '%s' in r/%s",
-                len(organic_results), ticker, subreddit,
+                len(organic_results), search_names[0], subreddit,
             )
 
             for result in organic_results:

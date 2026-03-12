@@ -33,13 +33,13 @@ _FINANCIAL_SOURCES = [
 def fetch_news(ticker: str, company_name: str, days: int = 21) -> List[NewsArticle]:
     """Fetch financial news articles for a stock.
 
-    Tries NewsAPI first. If NewsAPI fails (quota exceeded, key missing, or error),
-    falls back to SerpAPI Google News search.
+    Tries SerpAPI Google News first (most reliable). Falls back to NewsAPI.
+    If both fail, uses SerpAPI regular Google search for news articles.
 
     Args:
         ticker: NSE/BSE ticker (e.g. 'RELIANCE'). Used as additional search term.
         company_name: Full company name (e.g. 'Reliance Industries'). Primary search term.
-        days: Number of past days to search. NewsAPI free tier supports up to 30 days.
+        days: Number of past days to search.
 
     Returns:
         List of NewsArticle instances, sorted newest first.
@@ -48,12 +48,20 @@ def fetch_news(ticker: str, company_name: str, days: int = 21) -> List[NewsArtic
     since = datetime.now(tz=timezone.utc) - timedelta(days=days)
     query = f'"{company_name}" OR "{ticker}"'
 
-    articles = _fetch_from_newsapi(query, since)
-    if articles is not None:
+    # Strategy 1: SerpAPI Google News (most reliable)
+    articles = _fetch_from_serpapi(query, since)
+    if articles:
         return articles
 
-    logger.info("NewsAPI unavailable — falling back to SerpAPI for %s", ticker)
-    return _fetch_from_serpapi(query, since) or []
+    # Strategy 2: NewsAPI (may fail on free tier with 426)
+    logger.info("SerpAPI had no results — trying NewsAPI for %s", ticker)
+    newsapi_articles = _fetch_from_newsapi(query, since)
+    if newsapi_articles:
+        return newsapi_articles
+
+    # Strategy 3: SerpAPI regular Google search for news
+    logger.info("Trying Google web search for news about %s", ticker)
+    return _fetch_from_serpapi_web(ticker, company_name, since) or []
 
 
 def _fetch_from_newsapi(query: str, since: datetime) -> Optional[List[NewsArticle]]:
@@ -80,8 +88,8 @@ def _fetch_from_newsapi(query: str, since: datetime) -> Optional[List[NewsArticl
     try:
         resp = requests.get(_NEWSAPI_URL, params=params, timeout=15)
 
-        if resp.status_code == 429:
-            logger.warning("NewsAPI rate limit exceeded (429)")
+        if resp.status_code in (426, 429):
+            logger.warning("NewsAPI error %d (plan limitation) — skipping", resp.status_code)
             return None
         if resp.status_code >= 500:
             logger.warning("NewsAPI server error %d", resp.status_code)
@@ -129,6 +137,73 @@ def _fetch_from_serpapi(query: str, since: datetime) -> Optional[List[NewsArticl
     except Exception as exc:
         logger.warning("SerpAPI request failed: %s", exc)
         return []
+
+
+def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> Optional[List[NewsArticle]]:
+    """Fallback: Use SerpAPI regular Google search with news-related query.
+
+    Searches for stock news on Google and parses general results.
+    """
+    api_key = os.getenv("SERP_API_KEY")
+    if not api_key:
+        return None
+
+    query = f"{company_name} {ticker} stock news India"
+
+    # Time filter
+    days = (datetime.now(tz=timezone.utc) - since).days
+    if days <= 7:
+        tbs = "qdr:w"
+    elif days <= 30:
+        tbs = "qdr:m"
+    else:
+        tbs = "qdr:m3"
+
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": api_key,
+        "num": 20,
+        "tbs": tbs,
+    }
+
+    try:
+        resp = requests.get(_SERPAPI_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+
+        articles = []
+        for result in data.get("organic_results", []):
+            try:
+                title = result.get("title", "")
+                url = result.get("link", "")
+                snippet = result.get("snippet", "")
+                source = result.get("source", "") or result.get("displayed_link", "")
+                date_str = result.get("date", "")
+
+                if not title or not url:
+                    continue
+
+                try:
+                    date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc) if date_str else datetime.now(tz=timezone.utc)
+                except ValueError:
+                    date = datetime.now(tz=timezone.utc)
+
+                articles.append(NewsArticle(
+                    headline=title,
+                    source=source,
+                    date=date,
+                    url=url,
+                    body=snippet,
+                ))
+            except Exception:
+                continue
+
+        logger.info("SerpAPI web search found %d news articles", len(articles))
+        return articles if articles else None
+    except Exception as exc:
+        logger.warning("SerpAPI web search failed: %s", exc)
+        return None
 
 
 def _parse_newsapi_articles(raw_articles: list) -> List[NewsArticle]:
