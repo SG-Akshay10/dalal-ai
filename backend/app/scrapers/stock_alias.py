@@ -65,7 +65,8 @@ class StockInfo:
         if self.company_name:
             names.append(self.company_name)
         names.extend(a for a in self.aliases if a and a != self.ticker and a != self.company_name)
-        return names
+        # Deduplicate while preserving order
+        return list(dict.fromkeys(names))
 
 
 # ── Hardcoded aliases for popular Indian stocks ───────────────────────────────

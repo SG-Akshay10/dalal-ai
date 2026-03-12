@@ -144,3 +144,73 @@ class TestFetchNews:
             results = fetch_news("RELIANCE", "Reliance Industries", days=21)
 
         assert len(results) >= 0  # May call SerpAPI or return []
+
+
+class TestThirdFallbackWebSearch:
+    """Tests for the third fallback in fetch_news: Google web search via SerpAPI."""
+
+    def test_google_news_and_newsapi_fail_falls_back_to_web(self, mock_api_keys):
+        """When both primary (SerpAPI News) and secondary (NewsAPI) fail, tries web search."""
+        call_count = 0
+        
+        web_success_response = {
+            "organic_results": [
+                {
+                    "title": "Reliance Q4 Results Web Page",
+                    "link": "https://www.reliance.com/q4",
+                    "snippet": "Reliance posts record profits.",
+                    "date": "2 Days ago",
+                    "source": "Web Search"
+                }
+            ]
+        }
+
+        def mock_get_side_effect(url, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            resp = MagicMock()
+            if "tbm=nws" in url:
+                # First try: SerpAPI News fails
+                resp.status_code = 403
+            elif "newsapi.org" in url:
+                # Second try: NewsAPI fails
+                resp.status_code = 401
+            else:
+                # Third try: SerpAPI Web Search succeeds
+                resp.status_code = 200
+                resp.json.return_value = web_success_response
+                resp.raise_for_status = MagicMock()
+            return resp
+
+        with patch("app.scrapers.news_scraper.requests.get", side_effect=mock_get_side_effect):
+            results = fetch_news("RELIANCE", "Reliance Industries", days=21)
+
+        assert len(results) == 1
+        assert results[0].headline == "Reliance Q4 Results Web Page"
+        assert results[0].source == "Web Search"
+
+    def test_web_search_malformed_results_skipped(self, mock_api_keys):
+        web_response_malformed = {
+            "organic_results": [
+                {"title": "Missing Link"},  # Missing link
+                {"link": "http://missing.title"}  # Missing title
+            ]
+        }
+        with patch("app.scrapers.news_scraper._fetch_from_serpapi", return_value=[]), \
+             patch("app.scrapers.news_scraper._fetch_from_newsapi", return_value=[]), \
+             patch("app.scrapers.news_scraper.requests.get") as mock_get:
+                 
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json.return_value = web_response_malformed
+            resp.raise_for_status = MagicMock()
+            mock_get.return_value = resp
+
+            results = fetch_news("RELIANCE", "Reliance Industries", days=21)
+
+        assert results == []
+
+    def test_all_sources_fail_returns_empty(self, mock_api_keys):
+        with patch("app.scrapers.news_scraper.requests.get", side_effect=Exception("Network down")):
+            results = fetch_news("RELIANCE", "Reliance Industries", days=21)
+        assert results == []

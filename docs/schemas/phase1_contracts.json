@@ -1,0 +1,192 @@
+{
+  "DocumentObject": {
+    "description": "Represents a regulatory filing or announcement fetched from BSE, NSE, or SEBI.\n\nThis is the canonical output of the document_fetcher scraper.\nAll fields are required unless noted. Phase 2 agents rely on these\nfield names and types \u2014 do not change them without a migration plan.",
+    "example": {
+      "date": "2024-01-15T00:00:00",
+      "doc_type": "quarterly_result",
+      "ocr_used": false,
+      "parse_confidence": 1.0,
+      "source": "BSE",
+      "text": "Reliance Industries Q3FY24: Revenue grew 15% YoY to \u20b92.28 lakh crore...",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/doc123.pdf"
+    },
+    "properties": {
+      "source": {
+        "description": "Exchange or regulator that published this document.",
+        "enum": [
+          "BSE",
+          "NSE",
+          "SEBI"
+        ],
+        "title": "Source",
+        "type": "string"
+      },
+      "date": {
+        "description": "Publication date of the document (UTC).",
+        "format": "date-time",
+        "title": "Date",
+        "type": "string"
+      },
+      "doc_type": {
+        "description": "Category of document: 'announcement', 'filing', 'prospectus', 'quarterly_result', etc.",
+        "title": "Doc Type",
+        "type": "string"
+      },
+      "text": {
+        "description": "Full extracted text content of the document.",
+        "title": "Text",
+        "type": "string"
+      },
+      "url": {
+        "description": "Original URL of the document or PDF.",
+        "title": "Url",
+        "type": "string"
+      },
+      "ocr_used": {
+        "default": false,
+        "description": "True if Tesseract OCR was used (indicates scanned/image PDF).",
+        "title": "Ocr Used",
+        "type": "boolean"
+      },
+      "parse_confidence": {
+        "default": 1.0,
+        "description": "Confidence score for text extraction quality. 1.0 = digital PDF. <0.8 = OCR only.",
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Parse Confidence",
+        "type": "number"
+      }
+    },
+    "required": [
+      "source",
+      "date",
+      "doc_type",
+      "text",
+      "url"
+    ],
+    "title": "DocumentObject",
+    "type": "object"
+  },
+  "NewsArticle": {
+    "description": "Represents a news article fetched from financial news sources.\n\nSourced from: Economic Times, Mint, Moneycontrol, Business Standard\nvia NewsAPI (primary) or SerpAPI (fallback).\n\nPhase 2 sentiment_agent expects all fields to be present.\nMissing body text should be represented as an empty string, not None.",
+    "example": {
+      "body": "Reliance Industries on Friday reported a 10.6% jump in consolidated net profit...",
+      "date": "2024-01-20T10:00:00",
+      "headline": "Reliance Industries posts record Q3 profit",
+      "source": "Economic Times",
+      "url": "https://economictimes.com/reliance-q3-profit"
+    },
+    "properties": {
+      "headline": {
+        "description": "Article headline/title.",
+        "title": "Headline",
+        "type": "string"
+      },
+      "source": {
+        "description": "Publication name (e.g. 'Economic Times', 'Mint').",
+        "title": "Source",
+        "type": "string"
+      },
+      "date": {
+        "description": "Article publication date (UTC).",
+        "format": "date-time",
+        "title": "Date",
+        "type": "string"
+      },
+      "url": {
+        "description": "Canonical URL of the article.",
+        "title": "Url",
+        "type": "string"
+      },
+      "body": {
+        "default": "",
+        "description": "Full article body text. May be truncated by NewsAPI free tier to ~200 chars.",
+        "title": "Body",
+        "type": "string"
+      }
+    },
+    "required": [
+      "headline",
+      "source",
+      "date",
+      "url"
+    ],
+    "title": "NewsArticle",
+    "type": "object"
+  },
+  "SocialPost": {
+    "description": "Represents a social media post from Twitter/X or Reddit.\n\nSourced from:\n- Twitter/X: cashtag mentions (e.g. $RELIANCE) via API v2\n- Reddit: r/IndiaInvestments and r/DalalStreet posts\n\nEngagement metadata (likes, comments) is used by Phase 2\nsentiment_agent to weight post importance in the CSS calculation.",
+    "example": {
+      "author": "invest_guru_42",
+      "comments": 34,
+      "content": "RELIANCE breaking out of long-term resistance. Expect 5-10% move. #DalalStreet",
+      "date": "2024-01-20T14:30:00",
+      "likes": 150,
+      "platform": "reddit",
+      "post_id": "abc123",
+      "url": "https://reddit.com/r/DalalStreet/comments/abc123"
+    },
+    "properties": {
+      "platform": {
+        "description": "Social platform the post was sourced from.",
+        "enum": [
+          "twitter",
+          "reddit",
+          "web"
+        ],
+        "title": "Platform",
+        "type": "string"
+      },
+      "post_id": {
+        "description": "Platform-native post ID (tweet ID or Reddit submission ID).",
+        "title": "Post Id",
+        "type": "string"
+      },
+      "content": {
+        "description": "Full text content of the post or tweet.",
+        "title": "Content",
+        "type": "string"
+      },
+      "author": {
+        "description": "Username or display name of the author.",
+        "title": "Author",
+        "type": "string"
+      },
+      "date": {
+        "description": "Post creation date (UTC).",
+        "format": "date-time",
+        "title": "Date",
+        "type": "string"
+      },
+      "likes": {
+        "default": 0,
+        "description": "Number of likes/upvotes.",
+        "minimum": 0,
+        "title": "Likes",
+        "type": "integer"
+      },
+      "comments": {
+        "default": 0,
+        "description": "Number of replies/comments.",
+        "minimum": 0,
+        "title": "Comments",
+        "type": "integer"
+      },
+      "url": {
+        "description": "Direct URL to the post.",
+        "title": "Url",
+        "type": "string"
+      }
+    },
+    "required": [
+      "platform",
+      "post_id",
+      "content",
+      "author",
+      "date",
+      "url"
+    ],
+    "title": "SocialPost",
+    "type": "object"
+  }
+}
