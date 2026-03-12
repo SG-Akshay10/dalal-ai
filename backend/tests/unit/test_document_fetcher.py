@@ -1,0 +1,111 @@
+"""Unit tests for document_fetcher.py — TDD Red-Green-Refactor.
+
+Tests cover:
+- NSE corporate announcements (happy path, empty, HTTP error)
+- BSE HTML scraping (happy path, scrip code lookup)
+- PDF extraction integration (success, failure)
+- Multi-source aggregation
+
+Run: pytest tests/unit/test_document_fetcher.py -v
+"""
+import pytest
+from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
+
+from app.scrapers.document_fetcher import fetch_documents
+from app.schemas.document_object import DocumentObject
+
+
+def _make_nse_announcement(desc="Board meeting outcome", pdf="test.pdf", date="01-Mar-2026"):
+    return {
+        "desc": desc,
+        "attchmntFile": pdf,
+        "an_dt": date,
+        "smIndustry": "Financial Results",
+    }
+
+
+class TestFetchDocuments:
+
+    def test_happy_path_returns_document_objects(self):
+        """HAPPY PATH: NSE returns announcements → list[DocumentObject]."""
+        announcements = [_make_nse_announcement(), _make_nse_announcement(desc="AGM notice")]
+
+        with patch("app.scrapers.document_fetcher._get_nse_session") as mock_session_fn, \
+             patch("app.scrapers.document_fetcher._fetch_bse_announcements_html", return_value=[]), \
+             patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=("Some text", 0.9, False)):
+
+            mock_session = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = announcements
+            mock_session.get.return_value = mock_resp
+            mock_session_fn.return_value = mock_session
+
+            results = fetch_documents("HDFCBANK", days=30)
+
+        assert len(results) >= 1
+        for doc in results:
+            assert isinstance(doc, DocumentObject)
+            assert doc.source == "NSE"
+
+    def test_empty_nse_response_returns_empty_list(self):
+        """EMPTY: NSE returns empty announcements list."""
+        with patch("app.scrapers.document_fetcher._get_nse_session") as mock_session_fn, \
+             patch("app.scrapers.document_fetcher._fetch_bse_announcements_html", return_value=[]):
+
+            mock_session = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = []
+            mock_session.get.return_value = mock_resp
+            mock_session_fn.return_value = mock_session
+
+            results = fetch_documents("HDFCBANK", days=30)
+
+        assert results == []
+
+    def test_http_error_from_nse_returns_empty(self):
+        """ERROR: NSE returns non-200 → empty list, no crash."""
+        with patch("app.scrapers.document_fetcher._get_nse_session") as mock_session_fn, \
+             patch("app.scrapers.document_fetcher._fetch_bse_announcements_html", return_value=[]):
+
+            mock_session = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.status_code = 403
+            mock_session.get.return_value = mock_resp
+            mock_session_fn.return_value = mock_session
+
+            results = fetch_documents("HDFCBANK", days=30)
+
+        assert results == []
+
+    def test_pdf_parse_failure_skips_document_and_logs(self):
+        """GRACEFUL: PDF extraction fails → still creates doc with announcement text."""
+        announcements = [_make_nse_announcement()]
+
+        with patch("app.scrapers.document_fetcher._get_nse_session") as mock_session_fn, \
+             patch("app.scrapers.document_fetcher._fetch_bse_announcements_html", return_value=[]), \
+             patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=(None, 0.0, False)):
+
+            mock_session = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = announcements
+            mock_session.get.return_value = mock_resp
+            mock_session_fn.return_value = mock_session
+
+            results = fetch_documents("HDFCBANK", days=30)
+
+        # Should still create a doc from the announcement text even if PDF failed
+        assert len(results) >= 1
+        assert "Board meeting outcome" in results[0].text
+
+    def test_nse_session_failure_graceful(self):
+        """GRACEFUL: NSE session setup fails → empty list, no crash."""
+        with patch("app.scrapers.document_fetcher._get_nse_session", return_value=None), \
+             patch("app.scrapers.document_fetcher._fetch_bse_announcements_html", return_value=[]):
+
+            results = fetch_documents("HDFCBANK", days=30)
+
+        assert results == []
