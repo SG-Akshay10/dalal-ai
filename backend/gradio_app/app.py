@@ -9,6 +9,11 @@ Run: python -m gradio_app.app   (from backend/ directory)
      or: gradio gradio_app/app.py
 """
 import logging
+from dotenv import load_dotenv
+
+# Load .env file BEFORE importing scrapers (they read env vars at import time)
+load_dotenv()
+
 import pandas as pd
 import gradio as gr
 
