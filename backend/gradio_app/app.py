@@ -11,6 +11,7 @@ are auto-resolved via the stock_alias module (NSE lookup + Gemini LLM).
 Run: python -m gradio_app.app   (from backend/ directory)
 """
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 # Load .env file BEFORE importing scrapers (they read env vars at import time)
@@ -127,6 +128,56 @@ def _fetch_and_display_social(ticker: str, days: int) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=SOCIAL_COLUMNS)
 
 
+def _fetch_all(ticker: str, days: int):
+    """Fetch all three data sources in parallel. Returns (docs_df, news_df, social_df, status)."""
+    ticker = ticker.strip().upper()
+    if not ticker:
+        empty = (
+            pd.DataFrame(columns=DOC_COLUMNS),
+            pd.DataFrame(columns=NEWS_COLUMNS),
+            pd.DataFrame(columns=SOCIAL_COLUMNS),
+            "⚠️ Enter a ticker first",
+        )
+        return empty
+
+    # Resolve stock info once (cached) so all fetchers use it
+    info = get_stock_info(ticker)
+    logger.info("⚡ Fetch All: %s (%s) — %d days, running in parallel...", ticker, info.company_name, days)
+
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(_fetch_and_display_documents, ticker, days): "docs",
+            pool.submit(_fetch_and_display_news, ticker, days): "news",
+            pool.submit(_fetch_and_display_social, ticker, days): "social",
+        }
+
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception as exc:
+                logger.warning("Fetch %s failed: %s", key, exc)
+                if key == "docs":
+                    results[key] = pd.DataFrame(columns=DOC_COLUMNS)
+                elif key == "news":
+                    results[key] = pd.DataFrame(columns=NEWS_COLUMNS)
+                else:
+                    results[key] = pd.DataFrame(columns=SOCIAL_COLUMNS)
+
+    doc_count = len(results.get("docs", []))
+    news_count = len(results.get("news", []))
+    social_count = len(results.get("social", []))
+
+    status = (
+        f"✅ **{info.company_name}** — "
+        f"📄 {doc_count} filings · 📰 {news_count} articles · 💬 {social_count} posts"
+    )
+
+    return results["docs"], results["news"], results["social"], status
+
+
 # ── Gradio UI ─────────────────────────────────────────────────────────────────
 
 def build_ui() -> gr.Blocks:
@@ -150,10 +201,11 @@ def build_ui() -> gr.Blocks:
                 scale=3,
             )
             days_input = gr.Slider(
-                label="Days to look back", minimum=7, maximum=90, value=49, step=7, scale=2
+                label="Days to look back", minimum=15, maximum=150, value=50, step=5, scale=2
             )
+            fetch_btn = gr.Button("Fetch", variant="primary", scale=1)
 
-        # Show resolved stock info
+        # Show resolved stock info / fetch status
         stock_info_display = gr.Markdown("")
         ticker_input.change(
             fn=_resolve_stock,
@@ -161,48 +213,35 @@ def build_ui() -> gr.Blocks:
             outputs=[stock_info_display],
         )
 
-        # ── Tab 1: Documents ──────────────────────────────────────────────────
+        # ── Tabs ─────────────────────────────────────────────────────────────
         with gr.Tabs():
             with gr.Tab("📄 Regulatory Filings"):
-                docs_btn = gr.Button("Fetch Filings", variant="primary")
                 docs_table = gr.DataFrame(
                     headers=DOC_COLUMNS,
                     label="BSE / NSE Documents",
                     wrap=True,
                 )
-                docs_btn.click(
-                    fn=_fetch_and_display_documents,
-                    inputs=[ticker_input, days_input],
-                    outputs=[docs_table],
-                )
 
-            # ── Tab 2: News ───────────────────────────────────────────────────
             with gr.Tab("📰 Financial News"):
-                news_btn = gr.Button("Fetch News", variant="primary")
                 news_table = gr.DataFrame(
                     headers=NEWS_COLUMNS,
                     label="Financial News Articles",
                     wrap=True,
                 )
-                news_btn.click(
-                    fn=_fetch_and_display_news,
-                    inputs=[ticker_input, days_input],
-                    outputs=[news_table],
-                )
 
-            # ── Tab 3: Social ─────────────────────────────────────────────────
             with gr.Tab("💬 Social Media"):
-                social_btn = gr.Button("Fetch Social Posts", variant="primary")
                 social_table = gr.DataFrame(
                     headers=SOCIAL_COLUMNS,
                     label="Twitter/X / Reddit / Web Posts",
                     wrap=True,
                 )
-                social_btn.click(
-                    fn=_fetch_and_display_social,
-                    inputs=[ticker_input, days_input],
-                    outputs=[social_table],
-                )
+
+        # ── Single Fetch button wires to all three tables ────────────────────
+        fetch_btn.click(
+            fn=_fetch_all,
+            inputs=[ticker_input, days_input],
+            outputs=[docs_table, news_table, social_table, stock_info_display],
+        )
 
     return demo
 
