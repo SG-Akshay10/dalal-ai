@@ -1,13 +1,15 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-from app.services.report_service import start_report_generation
+
 from app.db.supabase_client import get_supabase
+from app.services.report_service import start_report_generation
 
 router = APIRouter()
 
+
 class ReportRequest(BaseModel):
     ticker: str
+
 
 @router.post("/api/reports")
 def trigger_report(request: ReportRequest, background_tasks: BackgroundTasks):
@@ -19,29 +21,41 @@ def trigger_report(request: ReportRequest, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/api/reports/{job_id}")
 def get_report(job_id: str):
-    supabase = get_supabase()
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Database client unavailable")
-        
+    try:
+        supabase = get_supabase()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     job_resp = supabase.table("report_jobs").select("*").eq("id", job_id).execute()
     if not job_resp.data:
         raise HTTPException(status_code=404, detail="Job not found")
-        
+
     job = job_resp.data[0]
     if job["status"] == "completed":
         report_resp = supabase.table("reports").select("*").eq("job_id", job_id).execute()
         if not report_resp.data:
             return {"job": job, "report": None}
         return {"job": job, "report": report_resp.data[0]}
-    
+
     return {"job": job, "report": None}
+
 
 @router.get("/api/jobs/{job_id}/status")
 def get_job_status(job_id: str):
-    supabase = get_supabase()
-    job_resp = supabase.table("report_jobs").select("status, error_msg").eq("id", job_id).execute()
+    try:
+        supabase = get_supabase()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    job_resp = (
+        supabase.table("report_jobs")
+        .select("status, error_msg")
+        .eq("id", job_id)
+        .execute()
+    )
     if not job_resp.data:
         raise HTTPException(status_code=404, detail="Job not found")
     return job_resp.data[0]

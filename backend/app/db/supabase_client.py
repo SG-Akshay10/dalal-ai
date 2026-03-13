@@ -1,23 +1,30 @@
 import os
-from supabase import create_client, Client
+from functools import lru_cache
 
-# The Supabase client is a singleton-like connection factory
-_supabase_client = None
+from supabase import Client, create_client
 
-def get_supabase() -> Client:
-    """Return the initialized Supabase client."""
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-        
-    url: str = os.getenv("SUPABASE_URL", "")
-    key: str = os.getenv("SUPABASE_ANON_KEY", "")
-    
+
+def _get_supabase_credentials() -> tuple[str, str]:
+    """Load Supabase credentials from env variables.
+
+    Uses `SUPABASE_SERVICE_ROLE_KEY` for server-side writes when available,
+    and falls back to `SUPABASE_ANON_KEY` for local/demo usage.
+    """
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip() or os.getenv(
+        "SUPABASE_ANON_KEY", ""
+    ).strip()
+
     if not url or not key:
-        print("Warning: SUPABASE_URL or SUPABASE_ANON_KEY not set in environment.") 
-        # For tests, return None or mock client, but in prod we want to raise
-        # raise ValueError("Supabase credentials not found.")
-        return None
-        
-    _supabase_client = create_client(url, key)
-    return _supabase_client
+        raise RuntimeError(
+            "Supabase is not configured. Set SUPABASE_URL and "
+            "SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)."
+        )
+    return url, key
+
+
+@lru_cache(maxsize=1)
+def get_supabase() -> Client:
+    """Return a cached Supabase client configured from environment variables."""
+    url, key = _get_supabase_credentials()
+    return create_client(url, key)
