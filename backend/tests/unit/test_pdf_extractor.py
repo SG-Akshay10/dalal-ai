@@ -3,10 +3,10 @@
 Run: pytest tests/unit/test_pdf_extractor.py -v
 Coverage: pytest tests/unit/test_pdf_extractor.py --cov=app/scrapers/pdf_extractor --cov-report=term-missing
 """
+from unittest.mock import MagicMock, patch
+
 import pytest
 import requests
-from io import BytesIO
-from unittest.mock import patch, MagicMock, call
 
 from app.scrapers.pdf_extractor import extract_text_from_pdf
 

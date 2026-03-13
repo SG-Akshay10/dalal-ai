@@ -9,13 +9,14 @@ Tests cover:
 
 Run: pytest tests/unit/test_stock_alias.py -v
 """
-import json
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.scrapers.stock_alias import (
-    StockInfo, get_stock_info, _lookup_nse_company_name,
-    _get_llm_aliases, _HARDCODED_ALIASES,
+    _HARDCODED_ALIASES,
+    StockInfo,
+    _get_llm_aliases,
+    _lookup_nse_company_name,
+    get_stock_info,
 )
 
 

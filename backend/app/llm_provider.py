@@ -6,15 +6,15 @@ with a `.chat()` method compatible with LangChain's ChatModel interface.
 
 Used by Phase 2 agents (fundamental_agent, sentiment_agent, report_agent, etc.)
 """
-import os
 import logging
-from enum import Enum
+import os
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(StrEnum):
     """Supported LLM providers."""
     OPENAI = "openai"
     GEMINI = "gemini"

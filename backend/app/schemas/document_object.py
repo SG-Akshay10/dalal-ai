@@ -5,7 +5,8 @@ Consumed by: Phase 2 fundamental_agent.py (via ChromaDB RAG)
 """
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field, HttpUrl
+
+from pydantic import BaseModel, Field
 
 
 class DocumentObject(BaseModel):

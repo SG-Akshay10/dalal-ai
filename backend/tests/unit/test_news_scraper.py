@@ -3,12 +3,10 @@
 Run: pytest tests/unit/test_news_scraper.py -v
 Coverage: pytest tests/unit/test_news_scraper.py --cov=app/scrapers/news_scraper --cov-report=term-missing
 """
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from app.scrapers.news_scraper import fetch_news
 from app.schemas.news_article import NewsArticle
-
+from app.scrapers.news_scraper import fetch_news
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -152,7 +150,7 @@ class TestThirdFallbackWebSearch:
     def test_google_news_and_newsapi_fail_falls_back_to_web(self, mock_api_keys):
         """When both primary (SerpAPI News) and secondary (NewsAPI) fail, tries web search."""
         call_count = 0
-        
+
         web_success_response = {
             "organic_results": [
                 {
@@ -199,7 +197,7 @@ class TestThirdFallbackWebSearch:
         with patch("app.scrapers.news_scraper._fetch_from_serpapi", return_value=[]), \
              patch("app.scrapers.news_scraper._fetch_from_newsapi", return_value=[]), \
              patch("app.scrapers.news_scraper.requests.get") as mock_get:
-                 
+
             resp = MagicMock()
             resp.status_code = 200
             resp.json.return_value = web_response_malformed

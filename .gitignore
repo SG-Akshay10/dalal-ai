@@ -3,3 +3,6 @@
 /venv
 .pytest_cache/
 __pycache__
+architecture_plan.md
+sprint_plan_phase1.md
+tdd_guide_phase1.md

@@ -6,11 +6,11 @@ Run: cd backend && python tests/manual/test_live_scrapers.py
 This script makes REAL HTTP calls to BSE, NSE, Reddit, etc.
 No mocking — it's designed to diagnose what's working and what's broken.
 """
-import os
-import sys
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+import os
+import sys
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -43,15 +43,15 @@ def test_bse():
     # Try BSE scrip code for HDFC Bank = 500180
     urls = [
         # Approach 1: BSE API with scrip code
-        f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
-        f"?scrip_cd=500180&Category=Company%20Update&subcategory=-1"
-        f"&fromdate=20250101&todate=99991231&pageno=1&subcatgname=-1",
+        "https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
+        "?scrip_cd=500180&Category=Company%20Update&subcategory=-1"
+        "&fromdate=20250101&todate=99991231&pageno=1&subcatgname=-1",
         # Approach 2: BSE announcements HTML page
-        f"https://www.bseindia.com/corporates/ann.html?scrip_cd=500180",
+        "https://www.bseindia.com/corporates/ann.html?scrip_cd=500180",
         # Approach 3: BSE corporate filings JSON
-        f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
-        f"?scrip_cd=500180&Category=-1&subcategory=-1"
-        f"&fromdate=20250101&todate=99991231&pageno=1&subcatgname=-1",
+        "https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
+        "?scrip_cd=500180&Category=-1&subcategory=-1"
+        "&fromdate=20250101&todate=99991231&pageno=1&subcatgname=-1",
     ]
 
     for i, url in enumerate(urls, 1):
@@ -69,9 +69,9 @@ def test_bse():
                     if table:
                         print(f"  First entry keys: {list(table[0].keys())}")
                         print(f"  Sample: {json.dumps(table[0], indent=2)[:500]}")
-                except:
+                except Exception:
                     print(f"  Not JSON. First 300 chars: {resp.text[:300]}")
-            print(f"  ✅ Reachable" if resp.status_code == 200 else f"  ❌ HTTP {resp.status_code}")
+            print("  ✅ Reachable" if resp.status_code == 200 else f"  ❌ HTTP {resp.status_code}")
         except Exception as e:
             print(f"  ❌ FAILED: {e}")
 
@@ -112,9 +112,9 @@ def test_nse():
                     data = resp.json()
                     print(f"  JSON keys: {list(data.keys()) if isinstance(data, dict) else f'array[{len(data)}]'}")
                     print(f"  Sample: {json.dumps(data, indent=2)[:500]}")
-                except:
+                except Exception:
                     print(f"  Not JSON. First 200 chars: {resp.text[:200]}")
-            print(f"  ✅ Success" if resp.status_code == 200 else f"  ❌ HTTP {resp.status_code}")
+            print("  ✅ Success" if resp.status_code == 200 else f"  ❌ HTTP {resp.status_code}")
         except Exception as e:
             print(f"  ❌ FAILED: {e}")
 
@@ -175,7 +175,7 @@ def test_google_reddit():
                     print(f"     → {text}")
                     print(f"       {href[:100]}")
         elif resp.status_code == 429:
-            print(f"  ⚠️ Rate limited (429) — Google blocks direct scraping")
+            print("  ⚠️ Rate limited (429) — Google blocks direct scraping")
         else:
             print(f"  ❌ HTTP {resp.status_code}")
     except Exception as e:
@@ -201,11 +201,11 @@ def test_google_news():
             print(f"  Found {len(articles)} news articles")
             # Also try regular link extraction
             links = soup.find_all("a", href=True)
-            news_links = [l for l in links if "http" in l["href"] and "google" not in l["href"]][:5]
-            for l in news_links:
-                print(f"     → {l.get_text(strip=True)[:80]}")
+            news_links = [link for link in links if "http" in link["href"] and "google" not in link["href"]][:5]
+            for link in news_links:
+                print(f"     → {link.get_text(strip=True)[:80]}")
         elif resp.status_code == 429:
-            print(f"  ⚠️ Rate limited (429)")
+            print("  ⚠️ Rate limited (429)")
         else:
             print(f"  ❌ HTTP {resp.status_code}")
     except Exception as e:

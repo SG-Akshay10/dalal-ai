@@ -4,6 +4,7 @@ Produced by: news_scraper.py
 Consumed by: Phase 2 sentiment_agent.py (FinBERT scoring)
 """
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 

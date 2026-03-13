@@ -8,10 +8,8 @@ Data sources (validated via live diagnostics):
 Output: list[DocumentObject] — locked Phase 2 contract.
 """
 import logging
-import re
 import time
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -32,7 +30,7 @@ _HEADERS = {
 _REQUEST_DELAY_SECONDS = 1.5
 
 
-def fetch_documents(ticker: str, days: int = 90) -> List[DocumentObject]:
+def fetch_documents(ticker: str, days: int = 90) -> list[DocumentObject]:
     """Fetch regulatory documents and announcements for a given NSE/BSE ticker.
 
     Fetches from NSE corporate announcements API and BSE announcements page.
@@ -45,8 +43,8 @@ def fetch_documents(ticker: str, days: int = 90) -> List[DocumentObject]:
     Returns:
         List of DocumentObject instances. Empty list if no documents found.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(days=days)
-    results: List[DocumentObject] = []
+    since = datetime.now(tz=UTC) - timedelta(days=days)
+    results: list[DocumentObject] = []
 
     # Fetch from each source independently
     for fetcher in (_fetch_nse_announcements, _fetch_bse_announcements_html):
@@ -61,7 +59,7 @@ def fetch_documents(ticker: str, days: int = 90) -> List[DocumentObject]:
     return results
 
 
-def _get_nse_session() -> Optional[requests.Session]:
+def _get_nse_session() -> requests.Session | None:
     """Create an NSE session with proper cookies.
 
     NSE blocks requests without a valid session cookie.
@@ -94,7 +92,7 @@ def _get_nse_session() -> Optional[requests.Session]:
         return None
 
 
-def _fetch_nse_announcements(ticker: str, since: datetime) -> List[DocumentObject]:
+def _fetch_nse_announcements(ticker: str, since: datetime) -> list[DocumentObject]:
     """Fetch NSE corporate announcements for the given ticker.
 
     Uses the NSE /api/corporate-announcements endpoint which returns JSON
@@ -106,7 +104,7 @@ def _fetch_nse_announcements(ticker: str, since: datetime) -> List[DocumentObjec
 
     # NSE corporate announcements endpoint
     from_date = since.strftime("%d-%m-%Y")
-    to_date = datetime.now(tz=timezone.utc).strftime("%d-%m-%Y")
+    to_date = datetime.now(tz=UTC).strftime("%d-%m-%Y")
 
     url = (
         f"https://www.nseindia.com/api/corporate-announcements"
@@ -114,7 +112,7 @@ def _fetch_nse_announcements(ticker: str, since: datetime) -> List[DocumentObjec
         f"&from_date={from_date}&to_date={to_date}"
     )
 
-    docs: List[DocumentObject] = []
+    docs: list[DocumentObject] = []
     try:
         resp = session.get(url, timeout=15)
         if resp.status_code != 200:
@@ -137,7 +135,7 @@ def _fetch_nse_announcements(ticker: str, since: datetime) -> List[DocumentObjec
     return docs
 
 
-def _parse_nse_announcement(ann: dict) -> Optional[DocumentObject]:
+def _parse_nse_announcement(ann: dict) -> DocumentObject | None:
     """Parse a single NSE announcement into a DocumentObject."""
     try:
         subject = ann.get("desc", "") or ann.get("attchmntText", "")
@@ -145,10 +143,10 @@ def _parse_nse_announcement(ann: dict) -> Optional[DocumentObject]:
         date_str = ann.get("an_dt", "") or ann.get("dt", "")
 
         # Parse date
-        doc_date = datetime.now(tz=timezone.utc)
+        doc_date = datetime.now(tz=UTC)
         for fmt in ("%d-%b-%Y %H:%M:%S", "%d-%b-%Y", "%Y-%m-%dT%H:%M:%S"):
             try:
-                doc_date = datetime.strptime(date_str.strip(), fmt).replace(tzinfo=timezone.utc)
+                doc_date = datetime.strptime(date_str.strip(), fmt).replace(tzinfo=UTC)
                 break
             except (ValueError, AttributeError):
                 continue
@@ -179,7 +177,7 @@ def _parse_nse_announcement(ann: dict) -> Optional[DocumentObject]:
             date=doc_date,
             doc_type=ann.get("smIndustry", "announcement").lower().replace(" ", "_"),
             text=text,
-            url=full_url or f"https://www.nseindia.com/companies-listing/corporate-filings-announcements",
+            url=full_url or "https://www.nseindia.com/companies-listing/corporate-filings-announcements",
             ocr_used=ocr_used,
             parse_confidence=confidence,
         )
@@ -189,7 +187,7 @@ def _parse_nse_announcement(ann: dict) -> Optional[DocumentObject]:
         return None
 
 
-def _fetch_bse_announcements_html(ticker: str, since: datetime) -> List[DocumentObject]:
+def _fetch_bse_announcements_html(ticker: str, since: datetime) -> list[DocumentObject]:
     """Scrape BSE announcements HTML page for the given ticker.
 
     BSE's JSON API now returns HTML (rate-limited/blocked), so we
@@ -205,7 +203,7 @@ def _fetch_bse_announcements_html(ticker: str, since: datetime) -> List[Document
         return []
 
     url = f"https://www.bseindia.com/corporates/ann.html?scrip_cd={scrip_code}"
-    docs: List[DocumentObject] = []
+    docs: list[DocumentObject] = []
 
     try:
         resp = requests.get(url, headers=_HEADERS, timeout=15)
@@ -238,7 +236,7 @@ def _fetch_bse_announcements_html(ticker: str, since: datetime) -> List[Document
 
             docs.append(DocumentObject(
                 source="BSE",
-                date=datetime.now(tz=timezone.utc),
+                date=datetime.now(tz=UTC),
                 doc_type="announcement",
                 text=text,
                 url=pdf_url,
@@ -252,7 +250,7 @@ def _fetch_bse_announcements_html(ticker: str, since: datetime) -> List[Document
     return docs
 
 
-def _bse_lookup_scrip_code(ticker: str) -> Optional[str]:
+def _bse_lookup_scrip_code(ticker: str) -> str | None:
     """Look up BSE scrip code from ticker symbol using BSE search API."""
     url = f"https://api.bseindia.com/BseIndiaAPI/api/Suggest/w?flag=sugg&val={ticker}"
     try:
@@ -289,7 +287,7 @@ def _bse_lookup_scrip_code(ticker: str) -> Optional[str]:
     return common_scrips.get(ticker.upper())
 
 
-def _safe_extract_pdf(pdf_url: str) -> Tuple[Optional[str], float, bool]:
+def _safe_extract_pdf(pdf_url: str) -> tuple[str | None, float, bool]:
     """Attempt PDF extraction; return (None, 0.0, False) on failure."""
     try:
         return extract_text_from_pdf(pdf_url)

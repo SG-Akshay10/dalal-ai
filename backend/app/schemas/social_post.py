@@ -5,6 +5,7 @@ Consumed by: Phase 2 sentiment_agent.py (social sentiment scoring)
 """
 from datetime import datetime
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 

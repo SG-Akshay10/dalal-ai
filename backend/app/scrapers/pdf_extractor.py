@@ -5,12 +5,10 @@ See tdd_guide_phase1.md for the full test code to copy.
 """
 import logging
 from io import BytesIO
-from typing import Tuple
 
 import pdfplumber
 import pytesseract
 import requests
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +16,7 @@ logger = logging.getLogger(__name__)
 _MIN_DIGITAL_TEXT_LENGTH = 50
 
 
-def extract_text_from_pdf(url: str) -> Tuple[str, float, bool]:
+def extract_text_from_pdf(url: str) -> tuple[str, float, bool]:
     """Download and extract text from a PDF URL.
 
     Attempts pdfplumber first (fast, accurate for digital PDFs).

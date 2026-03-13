@@ -8,12 +8,11 @@ Tests cover:
 
 Run: pytest tests/unit/test_document_fetcher.py -v
 """
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
-from app.scrapers.document_fetcher import fetch_documents
 from app.schemas.document_object import DocumentObject
+from app.scrapers.document_fetcher import fetch_documents
 
 
 def _make_nse_announcement(desc="Board meeting outcome", pdf="test.pdf", date="01-Mar-2026"):
@@ -145,13 +144,13 @@ class TestBSEHTMLScraping:
         with patch("app.scrapers.document_fetcher._bse_lookup_scrip_code", return_value="500180"), \
              patch("app.scrapers.document_fetcher.requests.get") as mock_get, \
              patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=(None, 0.0, False)):
-            
+
             resp = MagicMock()
             resp.status_code = 200
             resp.text = html
             mock_get.return_value = resp
 
-            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=timezone.utc))
+            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=UTC))
 
         assert len(results) == 1  # Only grabs hrefs with AttachLive
         assert results[0].source == "BSE"
@@ -163,12 +162,12 @@ class TestBSEHTMLScraping:
 
         with patch("app.scrapers.document_fetcher._bse_lookup_scrip_code", return_value="500180"), \
              patch("app.scrapers.document_fetcher.requests.get") as mock_get:
-            
+
             resp = MagicMock()
             resp.status_code = 404
             mock_get.return_value = resp
 
-            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=timezone.utc))
+            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=UTC))
 
         assert results == []
 
@@ -176,8 +175,8 @@ class TestNSEAnnouncementParsing:
     """Tests for _parse_nse_announcement edge cases."""
 
     def test_parse_nse_date_formats(self):
+
         from app.scrapers.document_fetcher import _parse_nse_announcement
-        import pytz
 
         # Test format 1
         ann1 = {"desc": "Test1 with a sufficiently long description", "an_dt": "15-Mar-2024 10:30:00"}
@@ -201,8 +200,8 @@ class TestNSEAnnouncementParsing:
         ann = {"desc": "Test1 with a sufficiently long description", "an_dt": "invalid date"}
         with patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=(None, 0, False)):
             doc = _parse_nse_announcement(ann)
-            
-        assert doc.date.year == datetime.now(tz=timezone.utc).year
+
+        assert doc.date.year == datetime.now(tz=UTC).year
 
     def test_parse_nse_no_text_returns_none(self):
         from app.scrapers.document_fetcher import _parse_nse_announcement
@@ -210,6 +209,6 @@ class TestNSEAnnouncementParsing:
         ann = {"desc": "", "attchmntText": ""}
         with patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=(None, 0, False)):
             doc = _parse_nse_announcement(ann)
-            
+
         assert doc is None
 

@@ -14,8 +14,7 @@ Output: list[SocialPost] — locked Phase 2 contract.
 import logging
 import os
 import re
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,7 +34,7 @@ _REDDIT_SUBREDDITS = [
 _REDDIT_MAX_RESULTS = 15
 
 
-def fetch_social(ticker: str, days: int = 21, company_name: str = "") -> List[SocialPost]:
+def fetch_social(ticker: str, days: int = 21, company_name: str = "") -> list[SocialPost]:
     """Fetch social media posts mentioning a given stock ticker.
 
     Uses the stock alias generator to discover all common names for the stock,
@@ -59,7 +58,7 @@ def fetch_social(ticker: str, days: int = 21, company_name: str = "") -> List[So
     # Use provided company_name or the resolved one
     effective_company_name = company_name or stock_info.company_name
 
-    posts: List[SocialPost] = []
+    posts: list[SocialPost] = []
 
     # 1. Reddit — use all names to search multiple subreddits
     reddit_posts = _fetch_reddit_via_serp(ticker, days, stock_info.all_names)
@@ -81,7 +80,7 @@ def fetch_social(ticker: str, days: int = 21, company_name: str = "") -> List[So
 # ── Twitter/X via Google Search ────────────────────────────────────────────────
 
 
-def _fetch_twitter_via_google(stock_info, days: int) -> List[SocialPost]:
+def _fetch_twitter_via_google(stock_info, days: int) -> list[SocialPost]:
     """Search Google via SerpAPI for Twitter/X posts mentioning the stock.
 
     Uses site:twitter.com OR site:x.com filter with all known stock names.
@@ -113,7 +112,7 @@ def _fetch_twitter_via_google(stock_info, days: int) -> List[SocialPost]:
         "tbs": tbs,
     }
 
-    posts: List[SocialPost] = []
+    posts: list[SocialPost] = []
     try:
         resp = requests.get("https://serpapi.com/search", params=params, timeout=15)
         resp.raise_for_status()
@@ -133,7 +132,7 @@ def _fetch_twitter_via_google(stock_info, days: int) -> List[SocialPost]:
     return posts
 
 
-def _parse_twitter_google_result(result: dict) -> Optional[SocialPost]:
+def _parse_twitter_google_result(result: dict) -> SocialPost | None:
     """Parse a Google result from Twitter/X into a SocialPost."""
     try:
         url = result.get("link", "")
@@ -158,7 +157,7 @@ def _parse_twitter_google_result(result: dict) -> Optional[SocialPost]:
 
         # Try to get date
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
+        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
 
         # Extract status ID from URL
         status_match = re.search(r'/status/(\d+)', url)
@@ -182,7 +181,7 @@ def _parse_twitter_google_result(result: dict) -> Optional[SocialPost]:
 # ── Reddit via SerpAPI + Scraping ──────────────────────────────────────────────
 
 
-def _fetch_reddit_via_serp(ticker: str, days: int, search_names: Optional[List[str]] = None) -> List[SocialPost]:
+def _fetch_reddit_via_serp(ticker: str, days: int, search_names: list[str] | None = None) -> list[SocialPost]:
     """Fetch Reddit posts by searching Google via SerpAPI with site:reddit.com filter.
 
     Uses all known stock names (aliases) for broader search coverage.
@@ -198,9 +197,9 @@ def _fetch_reddit_via_serp(ticker: str, days: int, search_names: Optional[List[s
         return _reddit_via_direct_scrape(ticker, days)
 
 
-def _reddit_via_serpapi(search_names: List[str], days: int, api_key: str) -> List[SocialPost]:
+def _reddit_via_serpapi(search_names: list[str], days: int, api_key: str) -> list[SocialPost]:
     """Use SerpAPI to Google-search Reddit for stock mentions using all aliases."""
-    posts: List[SocialPost] = []
+    posts: list[SocialPost] = []
 
     # Map days to Google's tbs time filter parameter
     if days <= 7:
@@ -248,7 +247,7 @@ def _reddit_via_serpapi(search_names: List[str], days: int, api_key: str) -> Lis
     return posts
 
 
-def _parse_serp_reddit_result(result: dict, subreddit: str) -> Optional[SocialPost]:
+def _parse_serp_reddit_result(result: dict, subreddit: str) -> SocialPost | None:
     """Parse a single SerpAPI Google organic result into a SocialPost."""
     try:
         url = result.get("link", "")
@@ -265,7 +264,7 @@ def _parse_serp_reddit_result(result: dict, subreddit: str) -> Optional[SocialPo
 
         # SerpAPI sometimes includes the date in the snippet
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
+        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
 
         # Content = title + snippet from Google
         content = title
@@ -287,7 +286,7 @@ def _parse_serp_reddit_result(result: dict, subreddit: str) -> Optional[SocialPo
         return None
 
 
-def _enrich_with_scraping(posts: List[SocialPost]) -> List[SocialPost]:
+def _enrich_with_scraping(posts: list[SocialPost]) -> list[SocialPost]:
     """Scrape old.reddit.com for each post to get upvotes, comments, author.
 
     Uses old.reddit.com because it renders server-side HTML (new reddit is
@@ -362,13 +361,13 @@ def _enrich_with_scraping(posts: List[SocialPost]) -> List[SocialPost]:
     return enriched
 
 
-def _reddit_via_direct_scrape(ticker: str, days: int) -> List[SocialPost]:
+def _reddit_via_direct_scrape(ticker: str, days: int) -> list[SocialPost]:
     """Fallback: scrape Reddit search results directly without SerpAPI.
 
     Uses old.reddit.com/r/{subreddit}/search?q={ticker}&sort=new&t=month
     which renders server-side and doesn't require JavaScript.
     """
-    posts: List[SocialPost] = []
+    posts: list[SocialPost] = []
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
     }
@@ -412,7 +411,7 @@ def _reddit_via_direct_scrape(ticker: str, days: int) -> List[SocialPost]:
     return posts
 
 
-def _parse_reddit_search_result(result_el, subreddit: str) -> Optional[SocialPost]:
+def _parse_reddit_search_result(result_el, subreddit: str) -> SocialPost | None:
     """Parse a single old.reddit.com search result element."""
     try:
         # Title and URL
@@ -446,7 +445,7 @@ def _parse_reddit_search_result(result_el, subreddit: str) -> Optional[SocialPos
         # Date
         time_el = result_el.select_one("time")
         date_str = time_el.get("datetime", "") if time_el else ""
-        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
+        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
 
         return SocialPost(
             platform="reddit",
@@ -463,7 +462,7 @@ def _parse_reddit_search_result(result_el, subreddit: str) -> Optional[SocialPos
         return None
 
 
-def _parse_date(date_str: str) -> Optional[datetime]:
+def _parse_date(date_str: str) -> datetime | None:
     """Best-effort date parsing from various source formats."""
     if not date_str:
         return None
@@ -472,7 +471,7 @@ def _parse_date(date_str: str) -> Optional[datetime]:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             continue
@@ -483,7 +482,7 @@ def _parse_date(date_str: str) -> Optional[datetime]:
 # ── Google Search Fallback ─────────────────────────────────────────────────────
 
 
-def _fetch_google_discussions(ticker: str, company_name: str, days: int) -> List[SocialPost]:
+def _fetch_google_discussions(ticker: str, company_name: str, days: int) -> list[SocialPost]:
     """Fallback: Search Google via SerpAPI for stock discussions when Reddit yields nothing.
 
     Searches for "{ticker} OR {company_name} stock discussion" and returns
@@ -520,7 +519,7 @@ def _fetch_google_discussions(ticker: str, company_name: str, days: int) -> List
         "tbs": tbs,
     }
 
-    posts: List[SocialPost] = []
+    posts: list[SocialPost] = []
     try:
         resp = requests.get("https://serpapi.com/search", params=params, timeout=15)
         resp.raise_for_status()
@@ -543,7 +542,7 @@ def _fetch_google_discussions(ticker: str, company_name: str, days: int) -> List
     return posts
 
 
-def _parse_google_result(result: dict) -> Optional[SocialPost]:
+def _parse_google_result(result: dict) -> SocialPost | None:
     """Parse a single SerpAPI Google organic result into a SocialPost."""
     try:
         url = result.get("link", "")
@@ -565,7 +564,7 @@ def _parse_google_result(result: dict) -> Optional[SocialPost]:
         post_id = re.sub(r'[^a-zA-Z0-9]', '', url[-20:])
 
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
+        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
 
         content = title
         if snippet:

@@ -24,7 +24,6 @@ import os
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import List, Optional
 
 import requests
 
@@ -43,7 +42,7 @@ class StockInfo:
     """Complete stock identity resolved from a ticker symbol."""
     ticker: str
     company_name: str
-    aliases: List[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
 
     @property
     def search_query(self) -> str:
@@ -59,7 +58,7 @@ class StockInfo:
         return " OR ".join(quoted)
 
     @property
-    def all_names(self) -> List[str]:
+    def all_names(self) -> list[str]:
         """All known names including ticker, company name, and aliases."""
         names = [self.ticker]
         if self.company_name:
@@ -174,7 +173,7 @@ def get_stock_info(ticker: str) -> StockInfo:
     return info
 
 
-def _lookup_nse_company_name(ticker: str) -> Optional[str]:
+def _lookup_nse_company_name(ticker: str) -> str | None:
     """Look up company name from NSE Quote API."""
     session = requests.Session()
     session.headers.update(_NSE_HEADERS)
@@ -197,7 +196,7 @@ def _lookup_nse_company_name(ticker: str) -> Optional[str]:
     return None
 
 
-def _get_llm_aliases(ticker: str, company_name: Optional[str]) -> List[str]:
+def _get_llm_aliases(ticker: str, company_name: str | None) -> list[str]:
     """Use Gemini API to generate popular aliases for a stock.
 
     Makes a direct HTTP call to the Gemini API (no langchain dependency).

@@ -10,17 +10,19 @@ Tests cover:
 
 Run: pytest tests/unit/test_social_listener.py -v
 """
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
-from app.scrapers.social_listener import (
-    fetch_social, _parse_serp_reddit_result, _parse_date,
-    _fetch_google_discussions, _parse_google_result,
-    _fetch_twitter_via_google, _parse_twitter_google_result,
-)
 from app.schemas.social_post import SocialPost
-
+from app.scrapers.social_listener import (
+    _fetch_google_discussions,
+    _fetch_twitter_via_google,
+    _parse_date,
+    _parse_google_result,
+    _parse_serp_reddit_result,
+    _parse_twitter_google_result,
+    fetch_social,
+)
 
 # ── SerpAPI Reddit result fixture ──────────────────────────────────────────────
 
@@ -125,7 +127,7 @@ class TestFetchSocial:
 
         with patch("app.scrapers.social_listener._fetch_twitter_via_google", return_value=[]), \
              patch("app.scrapers.social_listener._reddit_via_direct_scrape", return_value=[]) as mock_direct:
-            results = fetch_social("RELIANCE", days=21)
+            fetch_social("RELIANCE", days=21)
 
         mock_direct.assert_called_once_with("RELIANCE", 21)
 
@@ -231,7 +233,7 @@ class TestGoogleFallback:
         mock_info.return_value = _mock_stock_info()
         dummy_post = SocialPost(
             platform="reddit", post_id="x", content="Test",
-            author="u/test", date=datetime.now(tz=timezone.utc),
+            author="u/test", date=datetime.now(tz=UTC),
             likes=1, comments=0, url="https://reddit.com/test",
         )
         with patch("app.scrapers.social_listener._fetch_reddit_via_serp", return_value=[dummy_post]), \
@@ -306,7 +308,7 @@ class TestEnrichWithScraping:
 
         original = SocialPost(
             platform="reddit", post_id="abc123", content="Test post",
-            author="unknown", date=datetime.now(tz=timezone.utc),
+            author="unknown", date=datetime.now(tz=UTC),
             likes=0, comments=0, url="https://www.reddit.com/r/stocks/comments/abc123/test/",
         )
 
@@ -336,7 +338,7 @@ class TestEnrichWithScraping:
 
         original = SocialPost(
             platform="reddit", post_id="fail", content="Test",
-            author="u/test", date=datetime.now(tz=timezone.utc),
+            author="u/test", date=datetime.now(tz=UTC),
             likes=5, comments=2, url="https://www.reddit.com/r/stocks/comments/fail/test/",
         )
 
@@ -441,7 +443,7 @@ class TestRedditViaSerpApiAliases:
 
         # Verify the query contains OR-joined aliases
         call_args = mock_get.call_args
-        query = call_args[1]["params"]["q"] if "params" in call_args[1] else call_args[0][0]
+        call_args[1]["params"]["q"] if "params" in call_args[1] else call_args[0][0]
         # The function was called — just verify it didn't crash
         assert mock_get.called
 

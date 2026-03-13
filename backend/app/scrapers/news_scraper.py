@@ -11,8 +11,7 @@ Output: list[NewsArticle] — locked Phase 2 contract.
 """
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
 import requests
 
@@ -30,7 +29,7 @@ _FINANCIAL_SOURCES = [
 ]
 
 
-def fetch_news(ticker: str, company_name: str, days: int = 21) -> List[NewsArticle]:
+def fetch_news(ticker: str, company_name: str, days: int = 21) -> list[NewsArticle]:
     """Fetch financial news articles for a stock.
 
     Tries SerpAPI Google News first (most reliable). Falls back to NewsAPI.
@@ -45,7 +44,7 @@ def fetch_news(ticker: str, company_name: str, days: int = 21) -> List[NewsArtic
         List of NewsArticle instances, sorted newest first.
         Empty list if no articles found or all sources fail.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(days=days)
+    since = datetime.now(tz=UTC) - timedelta(days=days)
     query = f'"{company_name}" OR "{ticker}"'
 
     # Strategy 1: SerpAPI Google News (most reliable)
@@ -64,7 +63,7 @@ def fetch_news(ticker: str, company_name: str, days: int = 21) -> List[NewsArtic
     return _fetch_from_serpapi_web(ticker, company_name, since) or []
 
 
-def _fetch_from_newsapi(query: str, since: datetime) -> Optional[List[NewsArticle]]:
+def _fetch_from_newsapi(query: str, since: datetime) -> list[NewsArticle] | None:
     """Attempt to fetch news from NewsAPI.
 
     Returns None if the API key is missing or the request fails with a
@@ -112,7 +111,7 @@ def _fetch_from_newsapi(query: str, since: datetime) -> Optional[List[NewsArticl
         return None
 
 
-def _fetch_from_serpapi(query: str, since: datetime) -> Optional[List[NewsArticle]]:
+def _fetch_from_serpapi(query: str, since: datetime) -> list[NewsArticle] | None:
     """Attempt to fetch news from SerpAPI Google News search.
 
     Returns None if the API key is missing. Returns empty list on failure.
@@ -139,7 +138,7 @@ def _fetch_from_serpapi(query: str, since: datetime) -> Optional[List[NewsArticl
         return []
 
 
-def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> Optional[List[NewsArticle]]:
+def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> list[NewsArticle] | None:
     """Fallback: Use SerpAPI regular Google search with news-related query.
 
     Searches for stock news on Google and parses general results.
@@ -151,7 +150,7 @@ def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> 
     query = f"{company_name} {ticker} stock news India"
 
     # Time filter
-    days = (datetime.now(tz=timezone.utc) - since).days
+    days = (datetime.now(tz=UTC) - since).days
     if days <= 7:
         tbs = "qdr:w"
     elif days <= 30:
@@ -185,9 +184,9 @@ def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> 
                     continue
 
                 try:
-                    date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc) if date_str else datetime.now(tz=timezone.utc)
+                    date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=UTC) if date_str else datetime.now(tz=UTC)
                 except ValueError:
-                    date = datetime.now(tz=timezone.utc)
+                    date = datetime.now(tz=UTC)
 
                 articles.append(NewsArticle(
                     headline=title,
@@ -206,7 +205,7 @@ def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> 
         return None
 
 
-def _parse_newsapi_articles(raw_articles: list) -> List[NewsArticle]:
+def _parse_newsapi_articles(raw_articles: list) -> list[NewsArticle]:
     """Parse NewsAPI article list into NewsArticle objects, skipping malformed entries."""
     articles = []
     for raw in raw_articles:
@@ -235,7 +234,7 @@ def _parse_newsapi_articles(raw_articles: list) -> List[NewsArticle]:
     return articles
 
 
-def _parse_serpapi_articles(raw_articles: list) -> List[NewsArticle]:
+def _parse_serpapi_articles(raw_articles: list) -> list[NewsArticle]:
     """Parse SerpAPI news_results into NewsArticle objects."""
     articles = []
     for raw in raw_articles:
@@ -243,9 +242,9 @@ def _parse_serpapi_articles(raw_articles: list) -> List[NewsArticle]:
             date_str = raw.get("date") or ""
             # SerpAPI dates are in various formats; best-effort parse
             try:
-                date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=UTC)
             except ValueError:
-                date = datetime.now(tz=timezone.utc)
+                date = datetime.now(tz=UTC)
 
             articles.append(NewsArticle(
                 headline=raw.get("title", ""),
