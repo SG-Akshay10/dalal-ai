@@ -107,7 +107,7 @@ backend/
 | `TWITTER_BEARER_TOKEN` | [developer.twitter.com](https://developer.twitter.com) | 500K tweet reads/month |
 | `REDDIT_CLIENT_ID` + `SECRET` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | Free (rate limited) |
 | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Pay-per-use (Phase 2+) |
-| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | [supabase.com](https://supabase.com) | Free tier available |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY` / `SUPABASE_KEY`) | [supabase.com](https://supabase.com) | Free tier available |
 
 ---
 

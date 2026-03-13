@@ -1,4 +1,3 @@
-import uuid
 import datetime
 import logging
 from app.db.supabase_client import get_supabase
