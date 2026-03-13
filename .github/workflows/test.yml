@@ -1,0 +1,65 @@
+name: CI — StockSense AI Backend
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+jobs:
+  test:
+    name: Run Tests & Coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies (Tesseract)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install Python dependencies
+        run: uv sync --extra dev
+
+      - name: Run linter (ruff)
+        run: uv run ruff check app/ tests/
+
+      - name: Run unit tests with coverage
+        run: |
+          uv run pytest tests/unit/ \
+            --cov=app/scrapers \
+            --cov=app/schemas \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=80 \
+            -v
+        env:
+          # All external calls are mocked in unit tests — no real keys needed
+          NEWSAPI_KEY: ""
+          TWITTER_BEARER_TOKEN: ""
+          REDDIT_CLIENT_ID: ""
+          REDDIT_CLIENT_SECRET: ""
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
