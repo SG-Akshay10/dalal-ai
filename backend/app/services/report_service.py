@@ -1,4 +1,3 @@
-import uuid
 import datetime
 import logging
 from app.db.supabase_client import get_supabase
@@ -9,9 +8,7 @@ logger = logging.getLogger(__name__)
 def start_report_generation(ticker: str, background_tasks) -> str:
     """Trigger the LangGraph workflow inside a BackgroundTask."""
     supabase = get_supabase()
-    if not supabase:
-        raise ValueError("Supabase client is not configured.")
-        
+
     ticker = ticker.upper()
     
     # 1. Ensure stock exists
