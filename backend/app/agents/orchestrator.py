@@ -23,6 +23,7 @@ class ReportState(TypedDict, total=False):
     """The unified state passed around the LangGraph DAG."""
     ticker: str
     company_name: str
+    days: Optional[int]
     
     # Phase 1 Data (Optional initially)
     raw_documents: list
@@ -49,9 +50,12 @@ def node_scrape_data(state: ReportState) -> ReportState:
     logger.info(f"Node: Scrape Data - fetching for {ticker}")
     
     try:
-        docs = fetch_documents(ticker=ticker, days=90)
-        news = fetch_news(ticker=ticker, company_name=company_name, days=21)
-        social = fetch_social(ticker=ticker, days=21)
+        docs_days = state.get("days") or 90
+        news_social_days = state.get("days") or 21
+        
+        docs = fetch_documents(ticker=ticker, days=docs_days)
+        news = fetch_news(ticker=ticker, company_name=company_name, days=news_social_days)
+        social = fetch_social(ticker=ticker, days=news_social_days)
         
         return {
             "raw_documents": docs,
@@ -150,13 +154,14 @@ def build_orchestrator() -> StateGraph:
     
     return app
 
-def run_pipeline(ticker: str, company_name: str = None, overridden_competitors=None, preferred_provider: str = None) -> str:
+def run_pipeline(ticker: str, company_name: str = None, overridden_competitors=None, preferred_provider: str = None, days: int = None) -> str:
     """Execute the full DAG for a given ticker."""
     app = build_orchestrator()
     
     initial_state = {
         "ticker": ticker,
         "company_name": company_name or ticker,
+        "days": days,
         "raw_documents": [],
         "raw_news": [],
         "raw_social": [],
