@@ -10,7 +10,7 @@ Tests cover:
 
 Run: pytest tests/unit/test_social_listener.py -v
 """
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from app.schemas.social_post import SocialPost
@@ -233,7 +233,7 @@ class TestGoogleFallback:
         mock_info.return_value = _mock_stock_info()
         dummy_post = SocialPost(
             platform="reddit", post_id="x", content="Test",
-            author="u/test", date=datetime.now(tz=UTC),
+            author="u/test", date=datetime.now(tz=timezone.utc),
             likes=1, comments=0, url="https://reddit.com/test",
         )
         with patch("app.scrapers.social_listener._fetch_reddit_via_serp", return_value=[dummy_post]), \
@@ -308,7 +308,7 @@ class TestEnrichWithScraping:
 
         original = SocialPost(
             platform="reddit", post_id="abc123", content="Test post",
-            author="unknown", date=datetime.now(tz=UTC),
+            author="unknown", date=datetime.now(tz=timezone.utc),
             likes=0, comments=0, url="https://www.reddit.com/r/stocks/comments/abc123/test/",
         )
 
@@ -338,7 +338,7 @@ class TestEnrichWithScraping:
 
         original = SocialPost(
             platform="reddit", post_id="fail", content="Test",
-            author="u/test", date=datetime.now(tz=UTC),
+            author="u/test", date=datetime.now(tz=timezone.utc),
             likes=5, comments=2, url="https://www.reddit.com/r/stocks/comments/fail/test/",
         )
 

@@ -14,7 +14,7 @@ Output: list[SocialPost] — locked Phase 2 contract.
 import logging
 import os
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
@@ -157,7 +157,7 @@ def _parse_twitter_google_result(result: dict) -> SocialPost | None:
 
         # Try to get date
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
+        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
 
         # Extract status ID from URL
         status_match = re.search(r'/status/(\d+)', url)
@@ -264,7 +264,7 @@ def _parse_serp_reddit_result(result: dict, subreddit: str) -> SocialPost | None
 
         # SerpAPI sometimes includes the date in the snippet
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
+        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
 
         # Content = title + snippet from Google
         content = title
@@ -445,7 +445,7 @@ def _parse_reddit_search_result(result_el, subreddit: str) -> SocialPost | None:
         # Date
         time_el = result_el.select_one("time")
         date_str = time_el.get("datetime", "") if time_el else ""
-        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
+        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
 
         return SocialPost(
             platform="reddit",
@@ -471,7 +471,7 @@ def _parse_date(date_str: str) -> datetime | None:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
+                dt = dt.replace(tzinfo=timezone.utc)
             return dt
         except ValueError:
             continue
@@ -564,7 +564,7 @@ def _parse_google_result(result: dict) -> SocialPost | None:
         post_id = re.sub(r'[^a-zA-Z0-9]', '', url[-20:])
 
         date_str = result.get("date", "")
-        post_date = _parse_date(date_str) or datetime.now(tz=UTC)
+        post_date = _parse_date(date_str) or datetime.now(tz=timezone.utc)
 
         content = title
         if snippet:

@@ -13,7 +13,7 @@
 | Data Collection | Python scrapers (pdfplumber, NewsAPI, tweepy, PRAW) | Phase 1 |
 | Agent Pipeline | LangGraph + GPT-4o + FinBERT | Phase 2 |
 | Vector Store | ChromaDB (OpenAI embeddings) | Phase 2 |
-| API | FastAPI | Phase 2 |
+| API + Database | FastAPI + Supabase (Postgres) | Phase 2 |
 | Gradio UI | Gradio (data inspection) | Phase 1 |
 | Production UI | Next.js 14 + shadcn/ui | Phase 4 |
 | Async Queue | Celery + Redis | Phase 5 |
@@ -107,6 +107,7 @@ backend/
 | `TWITTER_BEARER_TOKEN` | [developer.twitter.com](https://developer.twitter.com) | 500K tweet reads/month |
 | `REDDIT_CLIENT_ID` + `SECRET` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | Free (rate limited) |
 | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Pay-per-use (Phase 2+) |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | [supabase.com](https://supabase.com) | Free tier available |
 
 ---
 

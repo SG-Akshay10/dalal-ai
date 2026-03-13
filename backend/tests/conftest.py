@@ -3,7 +3,7 @@
 All external API calls are mocked here or in individual test files.
 Tests NEVER make real HTTP calls — they must run without a .env file.
 """
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -46,7 +46,7 @@ def sample_document():
     """A valid DocumentObject for use as test data."""
     return DocumentObject(
         source="BSE",
-        date=datetime(2024, 1, 15, tzinfo=UTC),
+        date=datetime(2024, 1, 15, tzinfo=timezone.utc),
         doc_type="quarterly_result",
         text="Revenue grew 15% YoY in Q3FY24 to ₹2.28 lakh crore.",
         url="https://www.bseindia.com/xml-data/corpfiling/AttachLive/doc123.pdf",
@@ -61,7 +61,7 @@ def sample_news_article():
     return NewsArticle(
         headline="Reliance Industries posts record Q3 profit",
         source="Economic Times",
-        date=datetime(2024, 1, 20, tzinfo=UTC),
+        date=datetime(2024, 1, 20, tzinfo=timezone.utc),
         url="https://economictimes.com/reliance-q3-profit",
         body="Reliance Industries on Friday reported a 10.6% jump in consolidated net profit...",
     )
@@ -75,7 +75,7 @@ def sample_social_post():
         post_id="abc123",
         content="RELIANCE looking strong after Q3 results #DalalStreet",
         author="invest_guru_42",
-        date=datetime(2024, 1, 20, tzinfo=UTC),
+        date=datetime(2024, 1, 20, tzinfo=timezone.utc),
         likes=150,
         comments=34,
         url="https://reddit.com/r/DalalStreet/comments/abc123",

@@ -9,7 +9,7 @@ Output: list[DocumentObject] — locked Phase 2 contract.
 """
 import logging
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from bs4 import BeautifulSoup
@@ -43,7 +43,7 @@ def fetch_documents(ticker: str, days: int = 90) -> list[DocumentObject]:
     Returns:
         List of DocumentObject instances. Empty list if no documents found.
     """
-    since = datetime.now(tz=UTC) - timedelta(days=days)
+    since = datetime.now(tz=timezone.utc) - timedelta(days=days)
     results: list[DocumentObject] = []
 
     # Fetch from each source independently
@@ -104,7 +104,7 @@ def _fetch_nse_announcements(ticker: str, since: datetime) -> list[DocumentObjec
 
     # NSE corporate announcements endpoint
     from_date = since.strftime("%d-%m-%Y")
-    to_date = datetime.now(tz=UTC).strftime("%d-%m-%Y")
+    to_date = datetime.now(tz=timezone.utc).strftime("%d-%m-%Y")
 
     url = (
         f"https://www.nseindia.com/api/corporate-announcements"
@@ -143,10 +143,10 @@ def _parse_nse_announcement(ann: dict) -> DocumentObject | None:
         date_str = ann.get("an_dt", "") or ann.get("dt", "")
 
         # Parse date
-        doc_date = datetime.now(tz=UTC)
+        doc_date = datetime.now(tz=timezone.utc)
         for fmt in ("%d-%b-%Y %H:%M:%S", "%d-%b-%Y", "%Y-%m-%dT%H:%M:%S"):
             try:
-                doc_date = datetime.strptime(date_str.strip(), fmt).replace(tzinfo=UTC)
+                doc_date = datetime.strptime(date_str.strip(), fmt).replace(tzinfo=timezone.utc)
                 break
             except (ValueError, AttributeError):
                 continue
@@ -236,7 +236,7 @@ def _fetch_bse_announcements_html(ticker: str, since: datetime) -> list[Document
 
             docs.append(DocumentObject(
                 source="BSE",
-                date=datetime.now(tz=UTC),
+                date=datetime.now(tz=timezone.utc),
                 doc_type="announcement",
                 text=text,
                 url=pdf_url,
