@@ -83,7 +83,7 @@ def _build_gemini_client():
 
 def _build_sarvam_client():
     """Build a LangChain ChatOpenAI client pointing at Sarvam's OpenAI-compatible endpoint."""
-    from langchain_sarvam import ChatSarvam
+    from langchain_openai import ChatOpenAI
 
     api_key = os.getenv("SARVAM_API_KEY")
     if not api_key:
@@ -93,7 +93,7 @@ def _build_sarvam_client():
     base_url = os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai/v1")
     logger.info("Using Sarvam AI provider: model=%s, base_url=%s", model, base_url)
 
-    return ChatSarvam(
+    return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=base_url,

@@ -1,14 +1,11 @@
 import os
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 def get_embedder():
-    """Return the Gemini embedder as configured in .env."""
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        raise ValueError("GEMINI_API_KEY environment variable is not set")
+    """Return a local HuggingFace embedder."""
+    # Use a fast, lightweight model by default
+    model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
     
-    model = os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001")
-    return GoogleGenerativeAIEmbeddings(
-        model=model,
-        google_api_key=gemini_key
+    return HuggingFaceEmbeddings(
+        model_name=model_name
     )
