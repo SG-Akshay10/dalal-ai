@@ -25,6 +25,11 @@ from app.scrapers.news_scraper import fetch_news
 from app.scrapers.social_listener import fetch_social
 from app.scrapers.stock_alias import get_stock_info
 
+import json
+from app.agents.competitor_agent import identify_competitors
+from app.agents.orchestrator import run_pipeline
+from app.schemas.report import CompetitorAnalysis
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -166,17 +171,45 @@ def _fetch_all(ticker: str, days: int):
                 else:
                     results[key] = pd.DataFrame(columns=SOCIAL_COLUMNS)
 
-    doc_count = len(results.get("docs", []))
-    news_count = len(results.get("news", []))
-    social_count = len(results.get("social", []))
+    # Default fallbacks if empty
+    docs_df = results.get("docs", pd.DataFrame(columns=DOC_COLUMNS))
+    news_df = results.get("news", pd.DataFrame(columns=NEWS_COLUMNS))
+    social_df = results.get("social", pd.DataFrame(columns=SOCIAL_COLUMNS))
+
+    doc_count = len(docs_df)
+    news_count = len(news_df)
+    social_count = len(social_df)
 
     status = (
         f"✅ **{info.company_name}** — "
         f"📄 {doc_count} filings · 📰 {news_count} articles · 💬 {social_count} posts"
     )
 
-    return results["docs"], results["news"], results["social"], status
+    return docs_df, news_df, social_df, status
 
+def _find_competitors_gradio(ticker: str, provider: str):
+    ticker = ticker.strip().upper()
+    if not ticker:
+        return "{}"
+    try:
+        comps = identify_competitors(ticker, provider=provider)
+        return comps.model_dump_json(indent=2)
+    except Exception as e:
+        return f'{{\n  "error": "{str(e)}"\n}}'
+
+def _generate_report_gradio(ticker: str, comp_json: str, provider: str):
+    ticker = ticker.strip().upper()
+    if not ticker: return "Error: Please enter a ticker first."
+    
+    overridden = None
+    if comp_json and comp_json.strip() and not comp_json.startswith("{ \n  \"error"):
+        try:
+            data = json.loads(comp_json)
+            overridden = CompetitorAnalysis(**data)
+        except Exception as e:
+            return f"Error parsing competitor JSON: {e}"
+            
+    return run_pipeline(ticker, overridden_competitors=overridden, preferred_provider=provider)
 
 # ── Gradio UI ─────────────────────────────────────────────────────────────────
 
@@ -235,6 +268,28 @@ def build_ui() -> gr.Blocks:
                     label="Twitter/X / Reddit / Web Posts",
                     wrap=True,
                 )
+            
+            with gr.Tab("🧠 Phase 2 Agents"):
+                gr.Markdown("Identify competitors, modify the JSON output if you'd like, and then run the full automated analysis pipeline.")
+                
+                with gr.Row():
+                    provider_dropdown = gr.Dropdown(
+                        choices=["gemini", "sarvam"],
+                        value="gemini",
+                        label="LLM Provider",
+                        info="Choose which LLM to use for generation (Embeddings will use Gemini)",
+                        scale=2
+                    )
+                
+                with gr.Row():
+                    comp_btn = gr.Button("1. Identify Competitors")
+                    comp_text = gr.Textbox(label="Competitors JSON (Editable)", lines=10)
+                
+                gen_btn = gr.Button("2. Generate Full Report", variant="primary")
+                report_out = gr.Markdown("The synthesized markdown report will appear here.")
+                
+                comp_btn.click(fn=_find_competitors_gradio, inputs=[ticker_input, provider_dropdown], outputs=[comp_text])
+                gen_btn.click(fn=_generate_report_gradio, inputs=[ticker_input, comp_text, provider_dropdown], outputs=[report_out])
 
         # ── Single Fetch button wires to all three tables ────────────────────
         fetch_btn.click(

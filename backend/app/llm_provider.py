@@ -8,77 +8,59 @@ Used by Phase 2 agents (fundamental_agent, sentiment_agent, report_agent, etc.)
 """
 import logging
 import os
-from enum import StrEnum
+from enum import Enum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class LLMProvider(StrEnum):
+class LLMProvider(str, Enum):
     """Supported LLM providers."""
-    OPENAI = "openai"
     GEMINI = "gemini"
     SARVAM = "sarvam"
 
 
-def get_provider() -> LLMProvider:
-    """Read the LLM_PROVIDER env var and return the selected provider enum."""
-    raw = os.getenv("LLM_PROVIDER", "openai").lower().strip()
+def get_provider(preferred_provider: str = None) -> LLMProvider:
+    """Determine the provider to use.
+    If preferred_provider is passed (e.g. from UI), use it.
+    Otherwise read LLM_PROVIDER env var or auto-detect based on API keys.
+    """
+    raw = (preferred_provider or os.getenv("LLM_PROVIDER", "")).lower().strip()
+    
+    # If requested and valid, use it
     try:
-        return LLMProvider(raw)
+        if raw:
+            return LLMProvider(raw)
     except ValueError:
-        logger.warning(
-            "Unknown LLM_PROVIDER '%s' — falling back to 'openai'. "
-            "Valid options: openai, gemini, sarvam",
-            raw,
-        )
-        return LLMProvider.OPENAI
+        logger.warning("Unknown LLM_PROVIDER '%s' — falling back to auto-detection.", raw)
+
+    # Auto-detection based on priority: Gemini > Sarvam
+    if os.getenv("GEMINI_API_KEY"):
+        return LLMProvider.GEMINI
+    if os.getenv("SARVAM_API_KEY"):
+        return LLMProvider.SARVAM
+        
+    # Default fallback
+    return LLMProvider.GEMINI
 
 
-def get_llm_client() -> Any:
+def get_llm_client(preferred_provider: str = None) -> Any:
     """Return a LangChain-compatible ChatModel for the configured provider.
-
-    Environment variables required per provider:
-    - openai:  OPENAI_API_KEY, OPENAI_MODEL (default: gpt-4o)
-    - gemini:  GEMINI_API_KEY, GEMINI_MODEL (default: gemini-2.0-flash)
-    - sarvam:  SARVAM_API_KEY, SARVAM_MODEL (default: sarvam-105b),
-               SARVAM_BASE_URL (default: https://api.sarvam.ai/v1)
+    
+    Args:
+        preferred_provider: Optional string ("gemini" or "sarvam") to override defaults.
 
     Returns:
-        A ChatModel instance (ChatOpenAI, ChatGoogleGenerativeAI, or
-        ChatOpenAI with custom base_url for Sarvam).
-
-    Raises:
-        ValueError: If the required API key is not set.
+        A ChatModel instance (ChatGoogleGenerativeAI or ChatOpenAI for Sarvam).
     """
-    provider = get_provider()
+    provider = get_provider(preferred_provider)
 
-    if provider == LLMProvider.OPENAI:
-        return _build_openai_client()
-    elif provider == LLMProvider.GEMINI:
+    if provider == LLMProvider.GEMINI:
         return _build_gemini_client()
     elif provider == LLMProvider.SARVAM:
         return _build_sarvam_client()
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
-
-
-def _build_openai_client():
-    """Build a LangChain ChatOpenAI client."""
-    from langchain_openai import ChatOpenAI
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
-
-    model = os.getenv("OPENAI_MODEL", "gpt-4o")
-    logger.info("Using OpenAI provider: model=%s", model)
-
-    return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        temperature=0.3,
-    )
 
 
 def _build_gemini_client():
@@ -100,12 +82,8 @@ def _build_gemini_client():
 
 
 def _build_sarvam_client():
-    """Build a LangChain ChatOpenAI client pointing at Sarvam's OpenAI-compatible endpoint.
-
-    Sarvam AI exposes an OpenAI-compatible /chat/completions endpoint,
-    so we reuse ChatOpenAI with a custom base_url.
-    """
-    from langchain_openai import ChatOpenAI
+    """Build a LangChain ChatOpenAI client pointing at Sarvam's OpenAI-compatible endpoint."""
+    from langchain_sarvam import ChatSarvam
 
     api_key = os.getenv("SARVAM_API_KEY")
     if not api_key:
@@ -115,7 +93,7 @@ def _build_sarvam_client():
     base_url = os.getenv("SARVAM_BASE_URL", "https://api.sarvam.ai/v1")
     logger.info("Using Sarvam AI provider: model=%s, base_url=%s", model, base_url)
 
-    return ChatOpenAI(
+    return ChatSarvam(
         model=model,
         api_key=api_key,
         base_url=base_url,

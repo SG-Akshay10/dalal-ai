@@ -8,7 +8,7 @@ Tests cover:
 
 Run: pytest tests/unit/test_document_fetcher.py -v
 """
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from app.schemas.document_object import DocumentObject
@@ -150,7 +150,7 @@ class TestBSEHTMLScraping:
             resp.text = html
             mock_get.return_value = resp
 
-            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=UTC))
+            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=timezone.utc))
 
         assert len(results) == 1  # Only grabs hrefs with AttachLive
         assert results[0].source == "BSE"
@@ -167,7 +167,7 @@ class TestBSEHTMLScraping:
             resp.status_code = 404
             mock_get.return_value = resp
 
-            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=UTC))
+            results = _fetch_bse_announcements_html("HDFCBANK", datetime.now(tz=timezone.utc))
 
         assert results == []
 
@@ -201,7 +201,7 @@ class TestNSEAnnouncementParsing:
         with patch("app.scrapers.document_fetcher._safe_extract_pdf", return_value=(None, 0, False)):
             doc = _parse_nse_announcement(ann)
 
-        assert doc.date.year == datetime.now(tz=UTC).year
+        assert doc.date.year == datetime.now(tz=timezone.utc).year
 
     def test_parse_nse_no_text_returns_none(self):
         from app.scrapers.document_fetcher import _parse_nse_announcement
