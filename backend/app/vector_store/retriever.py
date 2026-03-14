@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from app.vector_store.chroma_client import get_chroma_client, get_or_create_collection
+from app.vector_store.supabase_client import get_supabase_client
 from app.vector_store.embedder import get_embedder
 
 def retrieve_documents(query: str, ticker: str = None, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -7,33 +7,28 @@ def retrieve_documents(query: str, ticker: str = None, top_k: int = 5) -> List[D
     Retrieve top_k documents for a given query and optionally filter by ticker.
     Returns a list of dicts with 'text' and 'metadata'.
     """
-    client = get_chroma_client()
-    collection = get_or_create_collection(client)
+    client = get_supabase_client()
     embedder = get_embedder()
     
     # Generate embedding for the query
     query_embedding = embedder.embed_query(query)
     
-    where_filter = {}
+    params = {
+        "query_embedding": query_embedding,
+        "match_count": top_k,
+    }
     if ticker:
-        where_filter["ticker"] = ticker
+        params["filter_ticker"] = ticker
         
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k,
-        where=where_filter if where_filter else None,
-        include=["documents", "metadatas"]
-    )
+    result = client.rpc("match_documents", params).execute()
+    data = result.data
     
     retrieved_docs = []
-    if results["documents"] and len(results["documents"]) > 0:
-        docs = results["documents"][0]
-        metas = results["metadatas"][0] if results.get("metadatas") else [{}] * len(docs)
-        
-        for doc, meta in zip(docs, metas):
+    if data:
+        for doc in data:
             retrieved_docs.append({
-                "text": doc,
-                "metadata": meta
+                "text": doc.get("content", ""),
+                "metadata": doc.get("metadata", {})
             })
             
     return retrieved_docs

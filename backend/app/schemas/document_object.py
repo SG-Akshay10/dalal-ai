@@ -1,7 +1,7 @@
 """DocumentObject schema — Phase 1 data contract.
 
 Produced by: document_fetcher.py
-Consumed by: Phase 2 fundamental_agent.py (via ChromaDB RAG)
+Consumed by: Phase 2 fundamental_agent.py (via Supabase RAG)
 """
 from datetime import datetime
 from typing import Literal

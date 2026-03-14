@@ -5,7 +5,7 @@ router = APIRouter()
 
 @router.get("/api/stocks/search")
 def search_stocks(q: str = ""):
-    """Mock stock search returning matching items. Limits to 10."""
+    """Stock search returning matching items. Limits to 10."""
     try:
         supabase = get_supabase()
     except RuntimeError as exc:
