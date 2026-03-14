@@ -11,7 +11,7 @@ Output: list[NewsArticle] — locked Phase 2 contract.
 """
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import requests
 
@@ -44,7 +44,7 @@ def fetch_news(ticker: str, company_name: str, days: int = 21) -> list[NewsArtic
         List of NewsArticle instances, sorted newest first.
         Empty list if no articles found or all sources fail.
     """
-    since = datetime.now(tz=timezone.utc) - timedelta(days=days)
+    since = datetime.now(tz=UTC) - timedelta(days=days)
     query = f'"{company_name}" OR "{ticker}"'
 
     # Strategy 1: SerpAPI Google News (most reliable)
@@ -150,7 +150,7 @@ def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> 
     query = f"{company_name} {ticker} stock news India"
 
     # Time filter
-    days = (datetime.now(tz=timezone.utc) - since).days
+    days = (datetime.now(tz=UTC) - since).days
     if days <= 7:
         tbs = "qdr:w"
     elif days <= 30:
@@ -184,9 +184,9 @@ def _fetch_from_serpapi_web(ticker: str, company_name: str, since: datetime) -> 
                     continue
 
                 try:
-                    date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc) if date_str else datetime.now(tz=timezone.utc)
+                    date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=UTC) if date_str else datetime.now(tz=UTC)
                 except ValueError:
-                    date = datetime.now(tz=timezone.utc)
+                    date = datetime.now(tz=UTC)
 
                 articles.append(NewsArticle(
                     headline=title,
@@ -242,9 +242,9 @@ def _parse_serpapi_articles(raw_articles: list) -> list[NewsArticle]:
             date_str = raw.get("date") or ""
             # SerpAPI dates are in various formats; best-effort parse
             try:
-                date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=UTC)
             except ValueError:
-                date = datetime.now(tz=timezone.utc)
+                date = datetime.now(tz=UTC)
 
             articles.append(NewsArticle(
                 headline=raw.get("title", ""),

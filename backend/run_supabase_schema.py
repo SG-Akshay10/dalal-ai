@@ -9,9 +9,9 @@ try:
     conn.autocommit = True
     cur = conn.cursor()
 
-    with open('../.gemini/antigravity/brain/6c3f9065-8190-488e-aa83-1dd2025bde4f/supabase_schema.sql', 'r') as file:
+    with open('../.gemini/antigravity/brain/6c3f9065-8190-488e-aa83-1dd2025bde4f/supabase_schema.sql') as file:
         sql = file.read()
-    
+
     print('Executing schema initialization script...')
     cur.execute(sql)
     print('Successfully applied supabase_schema.sql to the database!')

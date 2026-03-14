@@ -1,8 +1,10 @@
 import json
-from app.llm_provider import get_llm_client
-from app.vector_store.retriever import retrieve_documents
-from app.schemas.report import CompetitorAnalysis
+
 from langchain_core.prompts import PromptTemplate
+
+from app.llm_provider import get_llm_client
+from app.schemas.report import CompetitorAnalysis
+from app.vector_store.retriever import retrieve_documents
 
 COMPETITOR_PROMPT = """You are an expert equity research analyst specializing in the Indian stock market.
 Identify 2-3 direct listed competitors for the company with ticker {ticker}.
@@ -27,14 +29,14 @@ def identify_competitors(ticker: str, provider: str = None) -> CompetitorAnalysi
     """Run the competitor identification agent."""
     query = f"{ticker} core business segments operating products services"
     docs = retrieve_documents(query, ticker=ticker, top_k=5)
-    
+
     docs_text = "\n\n".join([f"Source: {d['metadata'].get('source')}\n{d['text']}" for d in docs])
-    
+
     prompt = PromptTemplate.from_template(COMPETITOR_PROMPT)
     formatted_prompt = prompt.format(ticker=ticker, documents=docs_text)
-    
+
     llm = get_llm_client(provider)
-    
+
     try:
         if hasattr(llm, "with_structured_output"):
             structured_llm = llm.with_structured_output(CompetitorAnalysis, method="json_mode" if "openai" in str(type(llm)).lower() else "function_calling")
@@ -43,16 +45,16 @@ def identify_competitors(ticker: str, provider: str = None) -> CompetitorAnalysi
                 return result
             except Exception:
                 pass
-                
+
         # Fallback raw call and JSON parse
         response = llm.invoke([
             {"role": "system", "content": "You output JSON only."},
             {"role": "user", "content": formatted_prompt}
         ])
-        
+
         content = response.content.replace("```json", "").replace("```", "").strip()
         data = json.loads(content)
         return CompetitorAnalysis(**data)
-        
-    except Exception as e:
+
+    except Exception:
         return CompetitorAnalysis(competitors=[])

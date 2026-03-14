@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.api.routes_reports import router as reports_router
 from app.api.routes_stocks import router as stocks_router
 

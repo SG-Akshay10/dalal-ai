@@ -1,8 +1,14 @@
-from app.llm_provider import get_llm_client
-from app.schemas.report import FundamentalAnalysis, SentimentAnalysis, CompetitorAnalysis, SectorAnalysis
 from langchain_core.prompts import PromptTemplate
 
-REPORT_PROMPT = """You are an expert financial writer. 
+from app.llm_provider import get_llm_client
+from app.schemas.report import (
+    CompetitorAnalysis,
+    FundamentalAnalysis,
+    SectorAnalysis,
+    SentimentAnalysis,
+)
+
+REPORT_PROMPT = """You are an expert financial writer.
 Synthesize the following agent outputs for {ticker} into a professional, structured markdown research report.
 
 **Agent Data:**
@@ -48,7 +54,7 @@ def generate_report(
     provider: str = None
 ) -> str:
     """Generate the final markdown report using all gathered context."""
-    
+
     prompt = PromptTemplate.from_template(REPORT_PROMPT)
     formatted_prompt = prompt.format(
         ticker=ticker,
@@ -57,19 +63,19 @@ def generate_report(
         sector_data=sector.model_dump_json(indent=2),
         competitor_data=competitors.model_dump_json(indent=2)
     )
-    
+
     llm = get_llm_client(provider)
-    
+
     try:
         response = llm.invoke([
             {"role": "system", "content": "You are an expert equity research analyst writing a professional report in markdown format."},
             {"role": "user", "content": formatted_prompt}
         ])
-        
+
         report_content = response.content.strip()
-        
+
         # Append hardcoded disclaimer
         return report_content + "\n\n" + SEBI_DISCLAIMER
-        
+
     except Exception as e:
         return f"# Error Generating Report for {ticker}\n\nAn error occurred during report synthesis: {str(e)}"

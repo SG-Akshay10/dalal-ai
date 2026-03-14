@@ -1,11 +1,12 @@
 import json
-from typing import List
-from transformers import pipeline
-from app.schemas.news_article import NewsArticle
-from app.schemas.social_post import SocialPost
-from app.schemas.report import SentimentAnalysis
-from app.llm_provider import get_llm_client
+
 from langchain_core.prompts import PromptTemplate
+from transformers import pipeline
+
+from app.llm_provider import get_llm_client
+from app.schemas.news_article import NewsArticle
+from app.schemas.report import SentimentAnalysis
+from app.schemas.social_post import SocialPost
 
 # Initialize FinBERT pipeline
 # Using ProsusAI/finbert for financial text sentiment
@@ -42,22 +43,22 @@ def score_text_with_finbert(text: str) -> dict:
     """Score a single piece of text using FinBERT."""
     if not sentiment_pipeline or not text:
         return {"label": "neutral", "score": 0.0}
-    
+
     # Truncate text to max length if needed (FinBERT limit)
     truncated_text = text[:512]
-    
+
     try:
         result = sentiment_pipeline(truncated_text)[0]
         return result
     except Exception:
         return {"label": "neutral", "score": 0.0}
 
-def analyze_sentiment(ticker: str, news: List[NewsArticle], social: List[SocialPost], provider: str = None) -> SentimentAnalysis:
+def analyze_sentiment(ticker: str, news: list[NewsArticle], social: list[SocialPost], provider: str = None) -> SentimentAnalysis:
     """Run the sentiment agent pipeline."""
-    
+
     # 1. Score all news and social posts using FinBERT
     scored_items = []
-    
+
     for article in news:
         s = score_text_with_finbert(article.headline + ". " + (article.body or ""))
         scored_items.append({
@@ -67,7 +68,7 @@ def analyze_sentiment(ticker: str, news: List[NewsArticle], social: List[SocialP
             "sentiment_label": s["label"],
             "sentiment_score": s["score"]
         })
-        
+
     for post in social:
         s = score_text_with_finbert(post.content)
         scored_items.append({
@@ -77,14 +78,14 @@ def analyze_sentiment(ticker: str, news: List[NewsArticle], social: List[SocialP
             "sentiment_label": s["label"],
             "sentiment_score": s["score"]
         })
-        
+
     # Prepare text for LLM
     data_text_lines = []
     for idx, item in enumerate(scored_items):
         data_text_lines.append(f"[{idx+1}] [{item['type'].upper()}] - Sent: {item['sentiment_label']} ({item['sentiment_score']:.2f}) - {item['text']}")
-        
+
     data_text = "\n".join(data_text_lines)
-    
+
     # Handle empty case
     if not data_text:
         return SentimentAnalysis(
@@ -97,9 +98,9 @@ def analyze_sentiment(ticker: str, news: List[NewsArticle], social: List[SocialP
     # 2. Synthesize using LLM
     prompt = PromptTemplate.from_template(SENTIMENT_SYNTHESIS_PROMPT)
     formatted_prompt = prompt.format(ticker=ticker, data_text=data_text)
-    
+
     llm = get_llm_client(provider)
-    
+
     try:
         if hasattr(llm, "with_structured_output"):
             structured_llm = llm.with_structured_output(SentimentAnalysis, method="json_mode" if "openai" in str(type(llm)).lower() else "function_calling")
@@ -108,17 +109,17 @@ def analyze_sentiment(ticker: str, news: List[NewsArticle], social: List[SocialP
                 return result
             except Exception:
                 pass
-                
+
         # Fallback raw call
         response = llm.invoke([
             {"role": "system", "content": "You output JSON only."},
             {"role": "user", "content": formatted_prompt}
         ])
-        
+
         content = response.content.replace("```json", "").replace("```", "").strip()
         data = json.loads(content)
         return SentimentAnalysis(**data)
-        
+
     except Exception as e:
         return SentimentAnalysis(
             composite_score=0,

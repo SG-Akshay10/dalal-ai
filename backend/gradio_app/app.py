@@ -5,15 +5,14 @@ Run: python -m gradio_app.app   (from backend/ directory)
 import logging
 import os
 import tempfile
-from dotenv import load_dotenv
-
-# Load .env file BEFORE importing scrapers (they read env vars at import time)
-load_dotenv()
 
 import gradio as gr
+from dotenv import load_dotenv
 
-from app.scrapers.stock_alias import get_stock_info
 from app.agents.orchestrator import run_pipeline
+from app.scrapers.stock_alias import get_stock_info
+
+load_dotenv()  # Load .env file
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -34,25 +33,25 @@ def generate_full_report(ticker: str, days: int, provider: str):
     if not ticker:
         yield "⚠️ Error: Please enter a ticker first.", gr.update(visible=False)
         return
-        
+
     info = get_stock_info(ticker)
-    
+
     yield f"🔄 **Running pipeline for {info.company_name}**\n\nSteps:\n1. Scraping Data (Docs, News, Social)\n2. Finding Competitors\n3. Analyzing Data\n4. Generating Report\n\n*This might take a few minutes...*", gr.update(visible=False)
-    
+
     # Run the entire pipeline synchronously
     report_md = run_pipeline(ticker, preferred_provider=provider, days=int(days))
-    
+
     # Save to a temporary file with the ticker name for downloading
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
     tmp.close()
-    
+
     filename = f"{ticker}_Equity_Report.md"
     new_path = os.path.join(os.path.dirname(tmp.name), filename)
     os.rename(tmp.name, new_path)
-    
+
     with open(new_path, "w", encoding="utf-8") as f:
         f.write(report_md)
-        
+
     yield report_md, gr.update(value=new_path, visible=True)
 
 
@@ -66,7 +65,7 @@ def build_ui() -> gr.Blocks:
         gr.Markdown(
             """
             # 📊 StockSense AI — Automated Equity Research
-            Enter any NSE/BSE ticker, configure parameters, and click **Generate Report**.  
+            Enter any NSE/BSE ticker, configure parameters, and click **Generate Report**.
             > **Examples:** `SBIN`, `ETERNAL`, `HDFCBANK`, `RELIANCE`, `TATAMOTORS`
             """
         )
@@ -97,7 +96,7 @@ def build_ui() -> gr.Blocks:
 
         with gr.Row():
             report_out = gr.Markdown("The synthesized markdown report will appear here.")
-            
+
         with gr.Row():
             download_btn = gr.DownloadButton("Download Markdown Report", visible=False)
 

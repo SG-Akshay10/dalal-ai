@@ -1,7 +1,8 @@
 import datetime
 import logging
-from app.db.supabase_client import get_supabase
+
 from app.agents.orchestrator import run_pipeline
+from app.db.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +11,7 @@ def start_report_generation(ticker: str, background_tasks) -> str:
     supabase = get_supabase()
 
     ticker = ticker.upper()
-    
+
     # 1. Ensure stock exists
     stock_resp = supabase.table("stocks").select("*").eq("ticker", ticker).execute()
     if not stock_resp.data:
@@ -22,17 +23,17 @@ def start_report_generation(ticker: str, background_tasks) -> str:
         stock_id = new_stock.data[0]["id"]
     else:
         stock_id = stock_resp.data[0]["id"]
-        
+
     # 2. Create a report job
     job_resp = supabase.table("report_jobs").insert({
         "stock_id": stock_id,
         "status": "pending"
     }).execute()
     job_id = job_resp.data[0]["id"]
-    
+
     # 3. Add background task to run the LangGraph pipeline
     background_tasks.add_task(_run_report_task, job_id, stock_id, ticker)
-    
+
     return job_id
 
 def _run_report_task(job_id: str, stock_id: str, ticker: str):
@@ -41,20 +42,20 @@ def _run_report_task(job_id: str, stock_id: str, ticker: str):
     try:
         # Set to analyzing
         supabase.table("report_jobs").update({"status": "analyzing"}).eq("id", job_id).execute()
-        
+
         # Run orchestrator
         logger.info(f"Starting pipeline for job {job_id} / ticker {ticker}")
         final_markdown = run_pipeline(ticker)
-        
+
         # Save the report with completed task state
         supabase.table("reports").insert({
             "job_id": job_id,
             "stock_id": stock_id,
             "markdown_content": final_markdown
         }).execute()
-        
+
         supabase.table("report_jobs").update({
-            "status": "completed", 
+            "status": "completed",
             "completed_at": datetime.datetime.utcnow().isoformat()
         }).eq("id", job_id).execute()
 

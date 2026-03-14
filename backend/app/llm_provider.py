@@ -8,13 +8,13 @@ Used by Phase 2 agents (fundamental_agent, sentiment_agent, report_agent, etc.)
 """
 import logging
 import os
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(StrEnum):
     """Supported LLM providers."""
     GEMINI = "gemini"
     SARVAM = "sarvam"
@@ -26,7 +26,7 @@ def get_provider(preferred_provider: str = None) -> LLMProvider:
     Otherwise read LLM_PROVIDER env var or auto-detect based on API keys.
     """
     raw = (preferred_provider or os.getenv("LLM_PROVIDER", "")).lower().strip()
-    
+
     # If requested and valid, use it
     try:
         if raw:
@@ -39,14 +39,14 @@ def get_provider(preferred_provider: str = None) -> LLMProvider:
         return LLMProvider.GEMINI
     if os.getenv("SARVAM_API_KEY"):
         return LLMProvider.SARVAM
-        
+
     # Default fallback
     return LLMProvider.GEMINI
 
 
 def get_llm_client(preferred_provider: str = None) -> Any:
     """Return a LangChain-compatible ChatModel for the configured provider.
-    
+
     Args:
         preferred_provider: Optional string ("gemini" or "sarvam") to override defaults.
 

@@ -1,5 +1,6 @@
+
 from pydantic import BaseModel, Field
-from typing import List, Optional
+
 
 class KPI(BaseModel):
     name: str = Field(description="Name of the Key Performance Indicator (e.g., Revenue, EBITDA, PAT)")
@@ -7,14 +8,14 @@ class KPI(BaseModel):
     trend: str = Field(description="YoY or QoQ trend (e.g., '+15% YoY')")
 
 class FundamentalAnalysis(BaseModel):
-    kpis: List[KPI] = Field(description="Top 5 KPIs extracted from the documents")
-    red_flags: List[str] = Field(description="Any red flags, risks, or negative indicators mentioned")
+    kpis: list[KPI] = Field(description="Top 5 KPIs extracted from the documents")
+    red_flags: list[str] = Field(description="Any red flags, risks, or negative indicators mentioned")
     management_commentary: str = Field(description="A brief summary of management commentary and forward-looking statements")
 
 class SentimentAnalysis(BaseModel):
     composite_score: int = Field(description="Composite Sentiment Score between -100 and +100")
-    positive_themes: List[str] = Field(description="Top 3 positive themes")
-    negative_themes: List[str] = Field(description="Top 3 negative themes")
+    positive_themes: list[str] = Field(description="Top 3 positive themes")
+    negative_themes: list[str] = Field(description="Top 3 negative themes")
     narrative: str = Field(description="Synthesis narrative about the market sentiment")
 
 class Competitor(BaseModel):
@@ -23,7 +24,7 @@ class Competitor(BaseModel):
     rationale: str = Field(description="Why this company is a competitor")
 
 class CompetitorAnalysis(BaseModel):
-    competitors: List[Competitor] = Field(description="List of 2-3 identified competitors")
+    competitors: list[Competitor] = Field(description="List of 2-3 identified competitors")
 
 class SectorAnalysis(BaseModel):
     sector_name: str = Field(description="Name of the operating sector")
