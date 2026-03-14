@@ -5,7 +5,7 @@ from transformers import pipeline
 
 from app.llm_provider import get_llm_client
 from app.schemas.news_article import NewsArticle
-from app.schemas.report import SentimentAnalysis
+from app.schemas.analysis import SentimentAnalysis
 from app.schemas.social_post import SocialPost
 
 # Initialize FinBERT pipeline
@@ -26,16 +26,26 @@ Provide:
 2. The top 3 positive themes.
 3. The top 3 negative themes.
 4. A brief narrative summarizing the current market sentiment.
+5. An overall sentiment label ("Strongly Bullish", "Bullish", "Neutral", "Bearish", "Strongly Bearish").
 
 Data:
 {data_text}
 
+Also, capture these counts:
+News count: {news_cnt}
+Social count: {social_cnt}
+Distribution: {dist}
+
 Always return your response as a valid JSON object matching the following schema:
 {{
-  "composite_score": 0,
+  "composite_sentiment_score": 0.0,
+  "label": "Neutral",
   "positive_themes": ["...", "...", "..."],
   "negative_themes": ["...", "...", "..."],
-  "narrative": "..."
+  "narrative": "...",
+  "news_article_count": {news_cnt},
+  "social_post_count": {social_cnt},
+  "finbert_distribution": {dist}
 }}
 """
 
@@ -79,6 +89,17 @@ def analyze_sentiment(ticker: str, news: list[NewsArticle], social: list[SocialP
             "sentiment_score": s["score"]
         })
 
+    pos_cnt = sum(1 for item in scored_items if item['sentiment_label'] == 'positive')
+    neg_cnt = sum(1 for item in scored_items if item['sentiment_label'] == 'negative')
+    neu_cnt = sum(1 for item in scored_items if item['sentiment_label'] == 'neutral')
+    total = len(scored_items)
+    
+    dist = {
+        "positive": round((pos_cnt/total)*100, 1) if total else 0,
+        "negative": round((neg_cnt/total)*100, 1) if total else 0,
+        "neutral": round((neu_cnt/total)*100, 1) if total else 0,
+    }
+
     # Prepare text for LLM
     data_text_lines = []
     for idx, item in enumerate(scored_items):
@@ -89,15 +110,19 @@ def analyze_sentiment(ticker: str, news: list[NewsArticle], social: list[SocialP
     # Handle empty case
     if not data_text:
         return SentimentAnalysis(
-            composite_score=0,
+            composite_sentiment_score=0,
+            label="Neutral",
             positive_themes=["No positive themes"],
             negative_themes=["No negative themes"],
-            narrative="No news or social data available to analyze sentiment."
+            narrative="No news or social data available to analyze sentiment.",
+            news_article_count=len(news),
+            social_post_count=len(social),
+            finbert_distribution=dist
         )
 
     # 2. Synthesize using LLM
     prompt = PromptTemplate.from_template(SENTIMENT_SYNTHESIS_PROMPT)
-    formatted_prompt = prompt.format(ticker=ticker, data_text=data_text)
+    formatted_prompt = prompt.format(ticker=ticker, data_text=data_text, news_cnt=len(news), social_cnt=len(social), dist=json.dumps(dist))
 
     llm = get_llm_client(provider)
 
@@ -122,8 +147,12 @@ def analyze_sentiment(ticker: str, news: list[NewsArticle], social: list[SocialP
 
     except Exception as e:
         return SentimentAnalysis(
-            composite_score=0,
+            composite_sentiment_score=0,
+            label="Neutral",
             positive_themes=["Error"],
             negative_themes=["Error"],
-            narrative=f"Agent error processing sentiment data: {str(e)}"
+            narrative=f"Agent error processing sentiment data: {str(e)}",
+            news_article_count=len(news),
+            social_post_count=len(social),
+            finbert_distribution=dist
         )

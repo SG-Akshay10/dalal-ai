@@ -3,7 +3,7 @@ import json
 from langchain_core.prompts import PromptTemplate
 
 from app.llm_provider import get_llm_client
-from app.schemas.report import SectorAnalysis
+from app.schemas.analysis import SectorAnalysis
 from app.vector_store.retriever import retrieve_documents
 
 SECTOR_PROMPT = """You are an expert equity research analyst focusing on macroeconomics and sector analysis in India.
@@ -14,16 +14,21 @@ Use the following context to assess the sector's performance, FII flows, and reg
 
 Provide:
 1. The sector name.
-2. The current growth stage (e.g., Emerging, High Growth, Mature, Declining).
-3. The sector's index performance and trend.
-4. The policy/regulatory context (recent budgets, policies, or structural shifts).
+2. The current growth stage (Emerging, High Growth, Mature, Declining).
+3. The sector's index performance YTD and trend. (Provide a nominal float if unable to get exact, e.g. 5.0)
+4. The FII flow trend (Strong Inflow, Moderate Inflow, Neutral, Moderate Outflow, Strong Outflow).
+5. The policy tailwinds and policy headwinds as lists.
+6. A summary of the regulatory/policy outlook.
 
 Always return your response as a valid JSON object matching the following schema:
 {{
   "sector_name": "...",
   "growth_stage": "...",
-  "index_performance": "...",
-  "policy_context": "..."
+  "index_performance_ytd": 0.0,
+  "fii_flow_trend": "...",
+  "policy_tailwinds": ["..."],
+  "policy_headwinds": ["..."],
+  "regulatory_summary": "..."
 }}
 """
 
@@ -37,9 +42,12 @@ def analyze_sector(ticker: str, provider: str = None) -> SectorAnalysis:
     if not docs_text:
         return SectorAnalysis(
             sector_name="Unknown",
-            growth_stage="Unknown",
-            index_performance="No data available",
-            policy_context="No policy data available"
+            growth_stage="Mature",
+            index_performance_ytd=0.0,
+            fii_flow_trend="Neutral",
+            policy_tailwinds=[],
+            policy_headwinds=[],
+            regulatory_summary="No policy data available"
         )
 
     prompt = PromptTemplate.from_template(SECTOR_PROMPT)
@@ -69,7 +77,10 @@ def analyze_sector(ticker: str, provider: str = None) -> SectorAnalysis:
     except Exception as e:
         return SectorAnalysis(
             sector_name="Error",
-            growth_stage="Error",
-            index_performance=f"Failed to analyze index performance: {str(e)}",
-            policy_context="Error analyzing policy context."
+            growth_stage="Mature",
+            index_performance_ytd=0.0,
+            fii_flow_trend="Neutral",
+            policy_tailwinds=[],
+            policy_headwinds=[],
+            regulatory_summary="Error analyzing policy context."
         )

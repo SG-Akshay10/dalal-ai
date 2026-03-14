@@ -3,7 +3,7 @@ import json
 from langchain_core.prompts import PromptTemplate
 
 from app.llm_provider import get_llm_client
-from app.schemas.report import CompetitorAnalysis
+from app.schemas.analysis import CompetitorAnalysis
 from app.vector_store.retriever import retrieve_documents
 
 COMPETITOR_PROMPT = """You are an expert equity research analyst specializing in the Indian stock market.
@@ -16,12 +16,17 @@ For each competitor provide:
 1. The stock ticker (e.g. TCS for Tata Consultancy Services)
 2. The company name
 3. A short rationale (1-2 sentences) explaining why they are a competitor.
+4. The exchange it's listed on (NSE or BSE).
+
+Also summarize the target company's primary sector and a brief description of its business segments.
 
 Always return your response as a valid JSON object matching the following schema:
 {{
   "competitors": [
-    {{"ticker": "...", "name": "...", "rationale": "..."}}
-  ]
+    {{"ticker": "...", "name": "...", "exchange": "NSE", "rationale": "..."}}
+  ],
+  "primary_sector": "...",
+  "business_description": "..."
 }}
 """
 
@@ -57,4 +62,4 @@ def identify_competitors(ticker: str, provider: str = None) -> CompetitorAnalysi
         return CompetitorAnalysis(**data)
 
     except Exception:
-        return CompetitorAnalysis(competitors=[])
+        return CompetitorAnalysis(competitors=[], primary_sector="Unknown", business_description="Error identifying competitors")

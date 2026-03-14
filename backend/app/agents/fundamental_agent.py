@@ -3,25 +3,35 @@ import json
 from langchain_core.prompts import PromptTemplate
 
 from app.llm_provider import get_llm_client
-from app.schemas.report import FundamentalAnalysis
+from app.schemas.analysis import FundamentalAnalysis
 from app.vector_store.retriever import retrieve_documents
 
 FUNDAMENTAL_PROMPT = """You are an expert equity research analyst.
 Analyze the following retrieved documents for the stock {ticker} and extract the key fundamental information.
 
-Extract the top 5 KPIs (Revenue, EBITDA, Profit, Margins, etc.), their values, and their YoY/QoQ trends.
-Also extract any red flags or risks, and summarize the management commentary.
+Extract or estimate the following KPIs and trends based on the context:
+1. Revenue, EBITDA, and PAT trends across quarters (YoY/QoQ).
+2. Current gross margin and net margin percentage.
+3. Free cash flow commentary.
+4. Current Debt-to-Equity ratio.
+5. Management commentary and guidance.
+6. Key risks or red flags.
 
 Retrieved Documents:
 {documents}
 
-Always return your response as a valid JSON object matching the following schema:
+Always return your response as a valid JSON object matching the following schema. Use 0.0 or empty strings if data is unavailable.
 {{
-  "kpis": [
-    {{"name": "...", "value": "...", "trend": "..."}}
-  ],
+  "revenue_trend": [{{"quarter": "...", "value": 0.0, "yoy_growth_pct": 0.0, "qoq_growth_pct": 0.0}}],
+  "ebitda_trend": [{{"quarter": "...", "value": 0.0, "yoy_growth_pct": 0.0, "qoq_growth_pct": 0.0}}],
+  "pat_trend": [{{"quarter": "...", "value": 0.0, "yoy_growth_pct": 0.0, "qoq_growth_pct": 0.0}}],
+  "gross_margin": 0.0,
+  "net_margin": 0.0,
+  "fcf_commentary": "...",
+  "debt_equity_ratio": 0.0,
+  "management_commentary": "...",
   "red_flags": ["...", "..."],
-  "management_commentary": "..."
+  "data_freshness_days": 1
 }}
 """
 
@@ -35,9 +45,16 @@ def extract_fundamentals(ticker: str, provider: str = None) -> FundamentalAnalys
 
     if not docs_text:
         return FundamentalAnalysis(
-            kpis=[],
-            red_flags=["No fundamental data found."],
-            management_commentary="No documents available to summarize."
+            revenue_trend=[],
+            ebitda_trend=[],
+            pat_trend=[],
+            gross_margin=0.0,
+            net_margin=0.0,
+            fcf_commentary="No documents available to summarize.",
+            debt_equity_ratio=0.0,
+            management_commentary="No documents available to summarize.",
+            red_flags=["Insufficient data - report may be incomplete"],
+            data_freshness_days=-1
         )
 
     prompt = PromptTemplate.from_template(FUNDAMENTAL_PROMPT)
@@ -71,7 +88,14 @@ def extract_fundamentals(ticker: str, provider: str = None) -> FundamentalAnalys
 
     except Exception as e:
         return FundamentalAnalysis(
-            kpis=[],
+            revenue_trend=[],
+            ebitda_trend=[],
+            pat_trend=[],
+            gross_margin=0.0,
+            net_margin=0.0,
+            fcf_commentary="",
+            debt_equity_ratio=0.0,
+            management_commentary="",
             red_flags=[f"Agent error processing fundamental data: {str(e)}"],
-            management_commentary=""
+            data_freshness_days=1
         )
