@@ -2,19 +2,22 @@ import sys
 import os
 import argparse
 from typing import List
+from dotenv import load_dotenv
+
+env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(env_path)
 
 # Setup path to import app modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.scrapers.document_fetcher import fetch_documents
 from app.schemas.document_object import DocumentObject
-from app.vector_store.chroma_client import get_chroma_client, get_or_create_collection
+from app.vector_store.supabase_client import get_supabase_client
 from app.vector_store.embedder import get_embedder
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-import chromadb
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def ingest_documents_for_ticker(ticker: str, days: int = 90):
-    """Fetch documents, chunk them, and save them to ChromaDB."""
+    """Fetch documents, chunk them, and save them to Supabase."""
     print(f"Fetching documents for {ticker} for the last {days} days...")
     
     docs: List[DocumentObject] = fetch_documents(ticker=ticker, days=days)
@@ -31,8 +34,7 @@ def ingest_documents_for_ticker(ticker: str, days: int = 90):
         length_function=len,
     )
     
-    client = get_chroma_client()
-    collection = get_or_create_collection(client)
+    client = get_supabase_client()
     embedder = get_embedder()
     
     total_chunks = 0
@@ -45,7 +47,6 @@ def ingest_documents_for_ticker(ticker: str, days: int = 90):
         if not chunks:
             continue
             
-        ids = [f"{ticker}_{doc.source}_{doc.date.isoformat()}_{i}" for i in range(len(chunks))]
         metadatas = [{
             "ticker": ticker,
             "source": doc.source,
@@ -55,23 +56,31 @@ def ingest_documents_for_ticker(ticker: str, days: int = 90):
             "chunk_index": i
         } for i in range(len(chunks))]
         
-        # We process embedding ourselves since we want to use the unified embedder.
-        # Alternatively, we could attach the embedding function directly to the collection,
-        # but Langchain's embedder returns vectors we can add manually.
+        # Embed the chunks
         embeddings = embedder.embed_documents(chunks)
         
-        collection.add(
-            ids=ids,
-            embeddings=embeddings,
-            metadatas=metadatas,
-            documents=chunks
-        )
+        # Prepare records for Supabase insertion
+        records = []
+        for i, chunk in enumerate(chunks):
+            records.append({
+                "content": chunk,
+                "metadata": metadatas[i],
+                "embedding": embeddings[i]
+            })
+            
+        # Insert to Supabase using the pgvector table dalalai_docs
+        try:
+            client.table("dalalai_docs").insert(records).execute()
+        except Exception as e:
+            print(f"Error inserting chunks for {doc.source}: {e}")
+            continue
+            
         total_chunks += len(chunks)
         
-    print(f"Ingested {total_chunks} chunks from {len(docs)} documents into ChromaDB for {ticker}.")
+    print(f"Ingested {total_chunks} chunks from {len(docs)} documents into Supabase for {ticker}.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Ingest documents into ChromaDB')
+    parser = argparse.ArgumentParser(description='Ingest documents into Supabase')
     parser.add_argument('--ticker', type=str, default="RELIANCE", help='Stock ticker')
     parser.add_argument('--days', type=int, default=90, help='Number of days to look back')
     

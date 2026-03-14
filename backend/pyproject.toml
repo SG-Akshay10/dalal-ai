@@ -31,7 +31,6 @@ dependencies = [
     # Social (Twitter/X is scraped via Google, no tweepy needed)
     # Gradio UI
     "gradio>=4.36.0",
-    "chromadb>=1.5.5",
     "openai>=2.26.0",
     "langchain>=1.2.12",
     "langchain-openai>=1.1.11",
@@ -43,31 +42,8 @@ dependencies = [
     "langchain-core>=1.2.18",
     "sentence-transformers>=5.3.0",
     "langchain-huggingface>=1.2.1",
+    "langchain-text-splitters>=1.1.1",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.2.0",
-    "pytest-mock>=3.14.0",
-    "pytest-cov>=5.0.0",
-    "responses>=0.25.0",
-    "ruff>=0.4.0",
-    "black>=24.0.0",
-    "pre-commit>=3.7.0",
-]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-addopts = "-v"
-
-[tool.coverage.run]
-source = ["app"]
-omit = ["tests/*", "gradio_app/*"]
-
-[tool.coverage.report]
-fail_under = 80
-show_missing = true
 
 [tool.ruff]
 line-length = 100

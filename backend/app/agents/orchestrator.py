@@ -70,7 +70,7 @@ def node_scrape_data(state: ReportState) -> ReportState:
 def node_fundamental_analysis(state: ReportState) -> ReportState:
     logger.info(f"Node: Fundamental Analysis for {state['ticker']}")
     
-    # Note: In a full pipeline, we would ingest docs to Chroma here 
+    # Note: In a full pipeline, we would ingest docs to Supabase here 
     # if they aren't already ingrained. For simplicity we assume ingest 
     # happens before, or we can just rely on the existing vector store.
     
