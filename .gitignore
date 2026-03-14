@@ -6,3 +6,7 @@ __pycache__
 architecture_plan.md
 sprint_plan_phase1.md
 tdd_guide_phase1.md
+/chroma_db/
+*.db
+*.sqlite3
+backend/chroma_db/chroma.sqlite3
