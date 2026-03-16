@@ -1,8 +1,12 @@
-"""LLM Provider abstraction — supports OpenAI, Gemini, and Sarvam AI.
+"""LLM Provider abstraction — currently supports Sarvam AI only.
 
-Provider is selected via the LLM_PROVIDER environment variable.
-All providers expose the same interface: `get_llm_client()` returns a client
-with a `.chat()` method compatible with LangChain's ChatModel interface.
+Provider is selected via the LLM_PROVIDER environment variable or auto-detected
+from available API keys. At present, the only valid provider value is "sarvam";
+any other value will be ignored and Sarvam will be used as the fallback.
+
+All providers (currently just Sarvam) expose the same interface:
+`get_llm_client()` returns a client with a `.chat()` method compatible with
+LangChain's ChatModel interface.
 
 Used by Phase 2 agents (fundamental_agent, sentiment_agent, report_agent, etc.)
 """
