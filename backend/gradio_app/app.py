@@ -80,8 +80,8 @@ def build_ui() -> gr.Blocks:
                 label="Days to look back", minimum=15, maximum=150, value=30, step=5, scale=2
             )
             provider_dropdown = gr.Dropdown(
-                choices=["gemini", "sarvam"],
-                value="gemini",
+                choices=["sarvam"],
+                value="sarvam",
                 label="Model Name (Generation)",
                 scale=2
             )

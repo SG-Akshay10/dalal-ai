@@ -10,3 +10,4 @@ tdd_guide_phase1.md
 *.db
 *.sqlite3
 backend/chroma_db/chroma.sqlite3
+prd.md
