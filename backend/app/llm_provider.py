@@ -30,12 +30,13 @@ def get_provider(preferred_provider: str = None) -> LLMProvider:
     """
     raw = (preferred_provider or os.getenv("LLM_PROVIDER", "")).lower().strip()
 
-    # If requested and valid, use it
-    try:
-        if raw:
+    # If a provider is explicitly requested, validate it and fail fast if unsupported.
+    if raw:
+        try:
             return LLMProvider(raw)
-    except ValueError:
-        logger.warning("Unknown LLM_PROVIDER '%s' — falling back to auto-detection.", raw)
+        except ValueError as exc:
+            # Non-sarvam providers are not supported; avoid silently falling back.
+            raise ValueError(f"Unsupported LLM provider: {raw}") from exc
 
     # Auto-detection based on priority: Sarvam
     if os.getenv("SARVAM_API_KEY"):
