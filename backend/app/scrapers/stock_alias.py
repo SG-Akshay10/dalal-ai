@@ -16,10 +16,7 @@ Example:
     #     search_query='"Zomato" OR "ETERNAL" OR "Eternal Limited"'
     #   )
 """
-import json
 import logging
-import os
-import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 
