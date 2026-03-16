@@ -45,9 +45,9 @@ def extract_fundamentals(ticker: str, provider: str = None) -> FundamentalAnalys
 
     llm = get_llm_client(provider)
 
-    # Use OpenAI/Gemini/Sarvam structured output functionality via Tool Calling or JSON Mode
+    # Use OpenAI/Sarvam structured output functionality via Tool Calling or JSON Mode
     # For cross-provider compatibility, asking for JSON and parsing is safer in LangChain generic endpoints
-    # Or we can try .with_structured_output() which works well on ChatOpenAI and ChatGoogleGenerativeAI
+    # Or we can try .with_structured_output() which works well on clients that implement it (such as ChatOpenAI)
     try:
         if hasattr(llm, "with_structured_output"):
             structured_llm = llm.with_structured_output(FundamentalAnalysis, method="json_mode" if "openai" in str(type(llm)).lower() else "function_calling")

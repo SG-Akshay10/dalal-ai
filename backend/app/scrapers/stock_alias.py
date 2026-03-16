@@ -2,9 +2,7 @@
 
 Given just a ticker symbol, this module:
 1. Looks up the official company name from NSE Quote API
-2. Uses a Gemini LLM call to generate common aliases, popular names, and
-   search terms that people use on social media and news
-3. Falls back to a hardcoded dictionary for popular Indian stocks
+2. Falls back to a hardcoded dictionary for popular Indian stocks
 
 The output is a StockInfo dataclass used by all scrapers so the user only
 needs to input the ticker symbol.
@@ -18,10 +16,7 @@ Example:
     #     search_query='"Zomato" OR "ETERNAL" OR "Eternal Limited"'
     #   )
 """
-import json
 import logging
-import os
-import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -128,8 +123,7 @@ def get_stock_info(ticker: str) -> StockInfo:
 
     Resolution order:
     1. NSE Quote API → official company name
-    2. Gemini LLM → popular aliases / social media names
-    3. Hardcoded dictionary → fallback for popular stocks
+    2. Hardcoded dictionary → fallback for popular stocks
 
     Results are cached (LRU, max 100 tickers).
 
@@ -146,18 +140,11 @@ def get_stock_info(ticker: str) -> StockInfo:
     company_name = _lookup_nse_company_name(ticker)
     logger.info("NSE company name for %s: %s", ticker, company_name or "not found")
 
-    # Step 2: Get aliases from LLM
-    llm_aliases = _get_llm_aliases(ticker, company_name)
-    if llm_aliases:
-        logger.info("LLM aliases for %s: %s", ticker, llm_aliases)
-
-    # Step 3: Merge with hardcoded aliases
+    # Step 2: Merge with hardcoded aliases
     hardcoded = _HARDCODED_ALIASES.get(ticker, [])
 
     # Combine and deduplicate
-    all_aliases = list(dict.fromkeys(
-        llm_aliases + hardcoded
-    ))
+    all_aliases = list(dict.fromkeys(hardcoded))
 
     # If we didn't get a company name from NSE, use the first alias
     if not company_name and all_aliases:
@@ -195,69 +182,3 @@ def _lookup_nse_company_name(ticker: str) -> str | None:
 
     return None
 
-
-def _get_llm_aliases(ticker: str, company_name: str | None) -> list[str]:
-    """Use Gemini API to generate popular aliases for a stock.
-
-    Makes a direct HTTP call to the Gemini API (no langchain dependency).
-    Returns empty list if the API key is not set or the call fails.
-    """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.debug("GEMINI_API_KEY not set — skipping LLM alias generation")
-        return []
-
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-
-    company_hint = f"Official company name: {company_name}" if company_name else "Company name unknown"
-
-    prompt = f"""You are a financial data expert specializing in Indian stock markets (NSE/BSE).
-
-Given this stock ticker: {ticker}
-{company_hint}
-
-Return a JSON array of 3-6 alternative names/terms that people commonly use to refer to this company on social media (Twitter, Reddit), news articles, and financial forums.
-
-Include:
-- Common abbreviations (e.g., SBI for State Bank of India)
-- Popular brand names (e.g., Zomato for Eternal Ltd)
-- Short forms used on social media (e.g., RIL for Reliance)
-- Commonly used name variations
-
-Do NOT include:
-- The ticker itself
-- Generic terms like "stock" or "share"
-- Very long descriptions
-
-Return ONLY a JSON array of strings, no explanation. Example: ["SBI", "State Bank", "State Bank of India"]"""
-
-    try:
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 200,
-            },
-        }
-
-        resp = requests.post(url, json=payload, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Extract text from Gemini response
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-
-        # Parse JSON array from the response (handle markdown code blocks)
-        text = text.strip()
-        if text.startswith("```"):
-            text = re.sub(r"```\w*\n?", "", text).strip()
-
-        aliases = json.loads(text)
-        if isinstance(aliases, list):
-            return [str(a).strip() for a in aliases if a and str(a).strip()]
-
-    except Exception as exc:
-        logger.debug("Gemini alias generation failed for %s: %s", ticker, exc)
-
-    return []
