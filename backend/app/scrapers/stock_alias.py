@@ -197,18 +197,18 @@ def _lookup_nse_company_name(ticker: str) -> str | None:
 
 
 def _get_llm_aliases(ticker: str, company_name: str | None) -> list[str]:
-    """Use Gemini API to generate popular aliases for a stock.
+    """Use Sarvam LLM API to generate popular aliases for a stock.
 
-    Makes a direct HTTP call to the Gemini API (no langchain dependency).
+    Uses get_llm_client() to call Sarvam's AI endpoint.
     Returns empty list if the API key is not set or the call fails.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.debug("GEMINI_API_KEY not set — skipping LLM alias generation")
-        return []
+    from app.llm_provider import get_llm_client
 
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    try:
+        client = get_llm_client()
+    except Exception as exc:
+        logger.debug("Failed to initialize LLM client: %s", exc)
+        return []
 
     company_hint = f"Official company name: {company_name}" if company_name else "Company name unknown"
 
@@ -233,31 +233,19 @@ Do NOT include:
 Return ONLY a JSON array of strings, no explanation. Example: ["SBI", "State Bank", "State Bank of India"]"""
 
     try:
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 200,
-            },
-        }
-
-        resp = requests.post(url, json=payload, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Extract text from Gemini response
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        resp = client.invoke(prompt)
+        text = str(resp.content).strip()
 
         # Parse JSON array from the response (handle markdown code blocks)
-        text = text.strip()
         if text.startswith("```"):
             text = re.sub(r"```\w*\n?", "", text).strip()
+            text = re.sub(r"\n?```$", "", text).strip()
 
         aliases = json.loads(text)
         if isinstance(aliases, list):
             return [str(a).strip() for a in aliases if a and str(a).strip()]
 
     except Exception as exc:
-        logger.debug("Gemini alias generation failed for %s: %s", ticker, exc)
+        logger.debug("LLM alias generation failed for %s: %s", ticker, exc)
 
     return []

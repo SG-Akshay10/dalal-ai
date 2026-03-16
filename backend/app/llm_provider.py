@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 class LLMProvider(StrEnum):
     """Supported LLM providers."""
-    GEMINI = "gemini"
     SARVAM = "sarvam"
 
 
@@ -34,51 +33,29 @@ def get_provider(preferred_provider: str = None) -> LLMProvider:
     except ValueError:
         logger.warning("Unknown LLM_PROVIDER '%s' — falling back to auto-detection.", raw)
 
-    # Auto-detection based on priority: Gemini > Sarvam
-    if os.getenv("GEMINI_API_KEY"):
-        return LLMProvider.GEMINI
+    # Auto-detection based on priority: Sarvam
     if os.getenv("SARVAM_API_KEY"):
         return LLMProvider.SARVAM
 
     # Default fallback
-    return LLMProvider.GEMINI
+    return LLMProvider.SARVAM
 
 
 def get_llm_client(preferred_provider: str = None) -> Any:
     """Return a LangChain-compatible ChatModel for the configured provider.
 
     Args:
-        preferred_provider: Optional string ("gemini" or "sarvam") to override defaults.
+        preferred_provider: Optional string ("sarvam") to override defaults.
 
     Returns:
-        A ChatModel instance (ChatGoogleGenerativeAI or ChatOpenAI for Sarvam).
+        A ChatModel instance (ChatOpenAI for Sarvam).
     """
     provider = get_provider(preferred_provider)
 
-    if provider == LLMProvider.GEMINI:
-        return _build_gemini_client()
-    elif provider == LLMProvider.SARVAM:
+    if provider == LLMProvider.SARVAM:
         return _build_sarvam_client()
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
-
-
-def _build_gemini_client():
-    """Build a LangChain ChatGoogleGenerativeAI client."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
-
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-    logger.info("Using Gemini provider: model=%s", model)
-
-    return ChatGoogleGenerativeAI(
-        model=model,
-        google_api_key=api_key,
-        temperature=0.3,
-    )
 
 
 def _build_sarvam_client():

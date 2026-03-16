@@ -28,7 +28,7 @@ def _resolve_stock(ticker: str) -> str:
     return f"🔍 **{info.company_name}** — searching with: {names}"
 
 
-def generate_full_report(ticker: str, days: int, provider: str):
+def generate_full_report(ticker: str, days: int):
     ticker = ticker.strip().upper()
     if not ticker:
         yield "⚠️ Error: Please enter a ticker first.", gr.update(visible=False)
@@ -39,7 +39,7 @@ def generate_full_report(ticker: str, days: int, provider: str):
     yield f"🔄 **Running pipeline for {info.company_name}**\n\nSteps:\n1. Scraping Data (Docs, News, Social)\n2. Finding Competitors\n3. Analyzing Data\n4. Generating Report\n\n*This might take a few minutes...*", gr.update(visible=False)
 
     # Run the entire pipeline synchronously
-    report_md = run_pipeline(ticker, preferred_provider=provider, days=int(days))
+    report_md = run_pipeline(ticker, preferred_provider="sarvam", days=int(days))
 
     # Save to a temporary file with the ticker name for downloading
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
@@ -79,12 +79,6 @@ def build_ui() -> gr.Blocks:
             days_input = gr.Slider(
                 label="Days to look back", minimum=15, maximum=150, value=30, step=5, scale=2
             )
-            provider_dropdown = gr.Dropdown(
-                choices=["gemini", "sarvam"],
-                value="gemini",
-                label="Model Name (Generation)",
-                scale=2
-            )
             gen_btn = gr.Button("Generate Report", variant="primary", scale=2)
 
         stock_info_display = gr.Markdown("")
@@ -102,7 +96,7 @@ def build_ui() -> gr.Blocks:
 
         gen_btn.click(
             fn=generate_full_report,
-            inputs=[ticker_input, days_input, provider_dropdown],
+            inputs=[ticker_input, days_input],
             outputs=[report_out, download_btn],
         )
 
