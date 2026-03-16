@@ -38,8 +38,8 @@ def generate_full_report(ticker: str, days: int):
 
     yield f"🔄 **Running pipeline for {info.company_name}**\n\nSteps:\n1. Scraping Data (Docs, News, Social)\n2. Finding Competitors\n3. Analyzing Data\n4. Generating Report\n\n*This might take a few minutes...*", gr.update(visible=False)
 
-    # Run the entire pipeline synchronously
-    report_md = run_pipeline(ticker, preferred_provider="sarvam", days=int(days))
+    # Run the entire pipeline synchronously, letting the provider be chosen by configuration
+    report_md = run_pipeline(ticker, days=int(days))
 
     # Save to a temporary file with the ticker name for downloading
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".md")
