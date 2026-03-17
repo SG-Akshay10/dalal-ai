@@ -1,2 +1,7 @@
-.antigravity
-backend
+frontend/node_modules/
+*.pyc
+*.next
+backend/.env
+frontend/.env.local
+backend/data_ingestion/db/schema.sql
+.antigravity/
